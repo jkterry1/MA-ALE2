@@ -10,6 +10,7 @@ from independent_rainbow import make_indepedent_rainbow
 from ppo_ram import make_ppo_ram_vec
 from shared_ppo import make_ppo_vec, make_ppo_vec_largenet
 import numpy as np
+import time
 import random
 
 
@@ -17,7 +18,7 @@ trainer_types = {
     "shared_rainbow": make_rainbow_preset,
     "independent_rainbow": make_indepedent_rainbow,
     "shared_ppo": make_ppo_vec,
-    "shared_ppo_ram": make_ppo_ram_vec,
+    # "shared_ppo_ram": make_ppo_ram_vec,
     "shared_ppo_largenet": make_ppo_vec_largenet,
 }
 
@@ -42,7 +43,8 @@ def main():
         "--frames", type=int, default=50e6, help="The number of training frames."
     )
     parser.add_argument(
-        "--experiment-seed", type=int, default=0, help="The unique id of the experiment run (for running multiple experiments)."
+        "--experiment-seed", type=int, default=int(time.time()),
+        help="The unique id of the experiment run (for running multiple experiments)."
     )
 
     args = parser.parse_args()

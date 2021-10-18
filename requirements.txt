@@ -1,0 +1,4 @@
+git+https://github.com/cpnota/autonomous-learning-library/tree/develop
+pettingzoo
+supersuit
+stable_baselines3

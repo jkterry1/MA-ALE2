@@ -192,7 +192,6 @@ def nat_features(env, frames=4, **kwargs):
 
 def make_rainbow_preset(env_name, device, replay_buffer_size):
     env = make_env(env_name)
-    from models import impala_rainbow
     agent0 = env.possible_agents[0]
     obs_space = env.observation_spaces[agent0]
     act_space = env.action_spaces[agent0]
