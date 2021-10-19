@@ -155,21 +155,20 @@ def main():
     all_env_map = {get_env_name(env): env for env in all_envs}
     all_algo_env_map = {(get_env_name(env), get_algo_name(env)): env for env in all_envs}
     all_algo_names = {get_algo_name(env) for env in all_envs}
-    print(all_algo_env_map)
+    # print(all_algo_env_map)
     all_envs = sorted(all_env_map.keys(), key=str.lower)
-    print(all_algo_names)
+    # print(all_algo_names)
     algo_lines = {}
     color_map = {
         'shared_ppo': "blue",
         'shared_rainbow': "orange",
     }
-    plot_ind = 1
+    plot_ind = 0
     num_envs = len(all_envs)
     num_rows = (num_envs+2)//3
-    plt.figure(figsize=(2.65*3*1.0, 1.5*7*1.0/8*num_rows))
+    fig, axs = plt.subplots(num_rows, 3, figsize=(2.65*3*1.0, 1.5*7*1.0/8*num_rows))
     for env in all_envs:
-        ax = plt.subplot(num_rows, 3, plot_ind)
-        # ax = plt.gca()
+        ax = axs[plot_ind // 3][plot_ind % 3]
         #df = pd.read_csv(os.path.join(data_path, env+'.csv'))
         # data = df.to_numpy()
         #filtered = scipy.signal.savgol_filter(data[:, 1], int(len(data[:, 1])/110)+2, 5)
@@ -188,18 +187,21 @@ def main():
         rand_reward = random_data[env]['mean_rewards']['first']
         rand_line, = ax.plot(x_axis, rand_reward*np.ones_like(x_axis), label=env, linewidth=0.6, color='#A0522D', linestyle='-')
 
-        ax.xlabel('Steps', labelpad=1)
-        ax.ylabel('Average Total Reward', labelpad=1)
-        ax.title(get_exp_label(env))
+        ax.set_xlabel('Steps', labelpad=1)
+        ax.set_ylabel('Average Total Reward', labelpad=1)
+        ax.set_title(get_exp_label(env))
+        ax.ticklabel_format(style='sci', scilimits = [-3, 3])
         #plt.xticks(ticks=[10000,20000,30000,40000,50000],labels=['10k','20k','30k','40k','50k'])
         #plt.xlim(0, 60000)
         #plt.yticks(ticks=[0,150,300,450,600],labels=['0','150','300','450','600'])
         #plt.ylim(-150, 750)
         # plt.tight_layout()
         #plt.legend(loc='lower center', ncol=2, labelspacing=.2, columnspacing=.25, borderpad=.25, bbox_to_anchor=(0.5, -0.6))
-        ax.margins(x=0)
+        ax.margins(x = 0)
+
         plot_ind += 1
 
+    plt.tight_layout(pad=1.00)
     oop_name = "Random" if not vs_builtin else "Builtin"
     name_map = {
         'shared_ppo': f"PPO Agent vs {oop_name} Agent",
@@ -207,7 +209,8 @@ def main():
     }
     name_sublist = [name_map[algo] for algo in all_algo_names]
     lint_sublist = [algo_lines[algo] for algo in all_algo_names]
-    plt.figlegend(lint_sublist+[rand_line], name_sublist + [f"Random Agent vs {oop_name} Agent"], fontsize='x-large', loc='lower center', ncol=1, labelspacing=.2, columnspacing=.25, borderpad=.25, bbox_to_anchor=(0.68,0.06))
+    legend_y = -0.20 if vs_builtin else -0.05
+    plt.figlegend(lint_sublist+[rand_line], name_sublist + [f"Random Agent vs {oop_name} Agent"], fontsize='x-large', loc='lower center', ncol=1, labelspacing=.2, columnspacing=.25, borderpad=.25, bbox_to_anchor=(0.5, legend_y))
     plt.savefig(f"{csv_name}.pgf", bbox_inches='tight', pad_inches=.025)
     plt.savefig(f"{csv_name}.png", bbox_inches='tight', pad_inches=.025, dpi=600)
 
