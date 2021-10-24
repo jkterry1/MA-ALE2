@@ -29,7 +29,7 @@ def make_vec_env(env_name, device):
     # env = to_parallel(env)
     env = ss.pettingzoo_env_to_vec_env_v0(env)
     env = ss.concat_vec_envs_v0(env, 32, num_cpus=8, base_class='stable_baselines3')
-    env = GymVectorEnvironment(env, "env_name", device=device)
+    env = GymVectorEnvironment(env, env_name, device=device)
     return env
 
 
