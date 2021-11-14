@@ -79,7 +79,7 @@ default_hyperparameters = {
 
 class NFSPRainbowAgent(Rainbow):
     """Rainbow agent with an additional AveragePolicyNetwork"""
-    def __init__(self, q_dist, replay_buffer, avg_q_dist, reservoir_buffer,
+    def __init__(self, q_dist, replay_buffer, avg_policy, reservoir_buffer,
                  anticipatory=0.1, discount_factor=0.99, eps=1e-5,
                  exploration=0.02, minibatch_size=32, replay_start_size=5000,
                  update_frequency=1, writer=DummyWriter()):
@@ -91,7 +91,7 @@ class NFSPRainbowAgent(Rainbow):
         )
         self.reservoir_replay_start_size = replay_start_size
         self._reservoir_buffer = reservoir_buffer
-        self._avg_q_dist = avg_q_dist
+        self._avg_policy = avg_policy
         self.anticipatory = anticipatory
         self._device = self.replay_buffer.buffer.device
         self.sample_episode_policy()
@@ -100,18 +100,15 @@ class NFSPRainbowAgent(Rainbow):
     def act(self, state):
         if self._first_ep_step(state):
             self.sample_episode_policy()
-        self._reservoir_buffer.store(self._state, self._action, state)
-        # if state['agent'] == 'first_0' and False:
-        #     print(f"self={self}, state={state['ep_step']}, "
-        #           f"self state={self._state['ep_step'] if self._state else None}")
+
+        self.replay_buffer.store(self._state, self._action, state)
         if self._mode == 'best_response':
-            self.replay_buffer.store(self._state, self._action, state)
+            self._reservoir_buffer.store(self._state, self._action, state)
             self._action = self._choose_action(state).squeeze().to(self._device)
         elif self._mode == 'average_policy':
             with torch.no_grad():
                 self._action = self._average_action(state).to(self._device)
-        else:
-            raise ValueError
+        else: raise ValueError
         self._state = state
         self._train()
 
@@ -139,11 +136,13 @@ class NFSPRainbowAgent(Rainbow):
     def _choose_action(self, state):
         if self._should_explore():
             return torch.randint(0, self.q_dist.n_actions, size=(1,))
-        return self._best_actions(self.q_dist.no_grad(state)).item()
+        return self._best_actions(self.q_dist.no_grad(state)) # .item()
 
-    def _average_action(self, state):
-        logits = self._avg_q_dist(state).sum(dim=-1) # Batch x Actions
-        actions = logits.multinomial(1).squeeze()
+    def _average_action(self, state) -> Tuple[TensorType, TensorType]:
+        # logits = self._avg_policy(state).sum(dim=-1) # Batch x Actions
+        logits = self._avg_policy(state) # batch x actions
+        probs = F.softmax(logits, dim=-1)
+        actions = probs.multinomial(1).squeeze()
 
         return actions
 
@@ -164,7 +163,7 @@ class NFSPRainbowAgent(Rainbow):
             # forward pass
             dist = self.q_dist(states, actions.squeeze())
             # compute target distribution
-            target_dist = self._compute_target_dist(next_states, rewards, q_dist=dist)
+            target_dist = self._compute_target_dist(next_states, rewards)
             # compute loss
             kl = self._kl(dist, target_dist)
             loss = (weights * kl).mean()
@@ -180,32 +179,17 @@ class NFSPRainbowAgent(Rainbow):
             transitions = self._reservoir_buffer.sample(self.minibatch_size)
             states, actions, rewards, next_states, weights = transitions
 
-            # forward pass
-            # (batch, atoms?)
-            dist = self._avg_q_dist(states, actions.squeeze())
-            # compute target distribution
-            # target_dist = self._compute_target_dist(next_states, rewards, q_dist=dist)
-            # compute loss
-
-            # # (batch, state_size)
-            # info_states = torch.from_numpy(np.array(info_states)).float().to(self.device)
-
-            # (batch, num_actions)
-            eval_action_probs = torch.from_numpy(np.array(action_probs)).float().to(self.device)
-
-            # (batch, num_actions)
-            log_forecast_action_probs = self.policy_network(info_states)
-
-            ce_loss = - (eval_action_probs * log_forecast_action_probs).sum(dim=-1).mean()
-            ce_loss.backward()
-
-            self.sl_optimizer.step()
-            ce_loss = ce_loss.item()
-            self.policy_network.eval()
+            # RLcard repo just one-hots the actions. Likely to get around the
+            #   Q/policy origin issue (no action probs for best_action or exploration)
+            one_hot = F.one_hot(actions, num_classes=self.q_dist.n_actions)
+            action_probs = self._avg_policy(states)
+            # cross entropy loss and do optimizer step
+            ce_loss = - (one_hot * action_probs).sum(dim=-1).mean()
+            self._avg_policy.reinforce(ce_loss)
 
             # debugging
             self.writer.add_loss(
-                "q_mean", (dist.detach() * self.q_dist.atoms).sum(dim=1).mean()
+                "ce_loss", ce_loss.detach().item()
             )
 
             return ce_loss
@@ -220,13 +204,13 @@ class NFSPRainbowAgent(Rainbow):
                and len(self._reservoir_buffer) >= self.minibatch_size
 
 
-    def _compute_target_dist(self, states, rewards, q_dist):
-        actions = self._best_actions(q_dist.no_grad(states))
-        dist = q_dist.target(states, actions)
+    def _compute_target_dist(self, states, rewards):
+        actions = self._best_actions(self.q_dist.no_grad(states))
+        dist = self.q_dist.target(states, actions)
         shifted_atoms = (
-            rewards.view((-1, 1)) + self.discount_factor * q_dist.atoms
+            rewards.view((-1, 1)) + self.discount_factor * self.q_dist.atoms
         )
-        return q_dist.project(dist, shifted_atoms)
+        return self.q_dist.project(dist, shifted_atoms)
 
     def _kl(self, dist, target_dist):
         log_dist = torch.log(torch.clamp(dist, min=self.eps))
@@ -246,12 +230,14 @@ class NFSPRainbowPreset(Preset):
         # Build model
         self.model = hparams['model_constructor'](env, frames=10, atoms=hparams["atoms"],
                                                   sigma=hparams["sigma"]).to(device)
-        self.avg_model = hparams['model_constructor'](env, frames=10, atoms=hparams["atoms"],
-                                                  sigma=hparams["sigma"]).to(device)
-        # self.avg_model = nn.Sequential(
-        #     nature_features(frames=10),
-        #     nature_policy_head(env)
-        # )
+        # self.avg_model = hparams['model_constructor'](env, frames=10, atoms=hparams["atoms"],
+        #                                           sigma=hparams["sigma"]).to(device)
+        from all.nn import RLNetwork, NoisyFactorizedLinear
+        self.avg_model = RLNetwork(nn.Sequential(
+            nature_features(frames=10),
+            NoisyFactorizedLinear(512, env.action_space.n),
+            # nature_policy_head(env)
+        )).to(device)
 
 
 
@@ -290,26 +276,28 @@ class NFSPRainbowPreset(Preset):
             lr=self.hyperparameters['lr'],
             eps=self.hyperparameters['eps']
         )
-        avg_q_dist = QDist(
-            self.avg_model,
-            sl_optimizer,
-            self.n_actions,
-            self.hyperparameters['atoms'],
-            scheduler=CosineAnnealingLR(optimizer, n_updates),
-            v_min=self.hyperparameters['v_min'],
-            v_max=self.hyperparameters['v_max'],
-            target=FixedTarget(self.hyperparameters['target_update_frequency']),
-            writer=writer,
-        )
+        # avg_policy = QDist(
+        #     self.avg_model,
+        #     sl_optimizer,
+        #     self.n_actions,
+        #     self.hyperparameters['atoms'],
+        #     scheduler=CosineAnnealingLR(optimizer, n_updates),
+        #     v_min=self.hyperparameters['v_min'],
+        #     v_max=self.hyperparameters['v_max'],
+        #     target=FixedTarget(self.hyperparameters['target_update_frequency']),
+        #     writer=writer,
+        # )
         from all.approximation import Approximation
         avg_policy = Approximation(
             self.avg_model,
             sl_optimizer,
+            name='average_policy',
+            device=self.device,
             target=FixedTarget(self.hyperparameters['target_update_frequency']),
             writer=writer,
         )
         reservoir_buffer = ReservoirBuffer(self.hyperparameters['replay_buffer_size'],
-                                           device='cuda')
+                                           device=self.device)
 
         def make_agent(agent_id):
             agent = DeepmindAtariBody(
@@ -317,7 +305,7 @@ class NFSPRainbowPreset(Preset):
                     NFSPRainbowAgent(
                         q_dist,
                         replay_buffer,
-                        avg_q_dist,
+                        avg_policy,
                         reservoir_buffer,
                         exploration=LinearScheduler(
                             self.hyperparameters['initial_exploration'],
@@ -406,6 +394,12 @@ class ReservoirBuffer(ExperienceReplayBuffer):
             if idx < self.capacity:
                 self.buffer[idx] = sample
         self._add_calls += 1
+
+    def store(self, state, action, next_state):
+        if state is not None and not state.done:
+            state = state.to(self.store_device)
+            next_state = next_state.to(self.store_device)
+            self._add((state, action, next_state))
 
     def sample(self, num_samples: int):
         """Returns `num_samples` uniformly sampled from the buffer."""

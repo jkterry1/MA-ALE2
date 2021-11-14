@@ -15,8 +15,9 @@ from all.agents.independent import IndependentMultiagent
 
 from shared_rainbow import make_rainbow_preset
 from independent_rainbow import make_indepedent_rainbow
-from ppo_ram import make_ppo_ram_vec
+# from ppo_ram import make_ppo_ram_vec
 from shared_ppo import make_ppo_vec
+from nfsp import make_nfsp_rainbow
 import supersuit as ss
 
 
@@ -24,7 +25,8 @@ trainer_types = {
     "shared_rainbow": make_rainbow_preset,
     "independent_rainbow": make_indepedent_rainbow,
     "shared_ppo": make_ppo_vec,
-    "shared_ppo_ram": make_ppo_ram_vec,
+    # "shared_ppo_ram": make_ppo_ram_vec,
+    "nfsp_rainbow": make_nfsp_rainbow,
 }
 
 class TestRandom:
