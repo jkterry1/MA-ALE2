@@ -76,10 +76,12 @@ def get_env_name(experiment_name):
     #     raise RuntimeError(f"{env_name} not found")
     # return game_env
 
+
 def get_exp_label(exp):
     start = exp.find("/")+1
     end = exp.rfind("_")
     return exp[start:end]
+
 
 def main():
 
@@ -99,7 +101,6 @@ def main():
     vs_random = not args.no_vs_random#bool(sys.argv[2])
     vs_builtin = args.vs_builtin#bool(sys.argv[2])
 
-
     matplotlib.use("pgf")
     plt.rcParams.update({
         "pgf.texsystem": "pdflatex",
@@ -110,7 +111,6 @@ def main():
         "text.usetex": True,
         "pgf.rcfonts": False
     });
-
 
     csv_data = pandas.read_csv(csv_name)
     # print(csv_data['vs_random'])
@@ -153,7 +153,7 @@ def main():
     all_envs = list(sorted(set(csv_data['no_seed_experiment'])))
 
     all_env_map = {get_env_name(env): env for env in all_envs}
-    all_algo_env_map = {(get_env_name(env),get_algo_name(env)): env for env in all_envs}
+    all_algo_env_map = {(get_env_name(env), get_algo_name(env)): env for env in all_envs}
     all_algo_names = {get_algo_name(env) for env in all_envs}
     print(all_algo_env_map)
     all_envs = sorted(all_env_map.keys(), key=str.lower)
@@ -168,7 +168,7 @@ def main():
     num_rows = (num_envs+2)//3
     plt.figure(figsize=(2.65*3*1.0, 1.5*7*1.0/8*num_rows))
     for env in all_envs:
-        plt.subplot(num_rows,3,plot_ind)
+        ax = plt.subplot(num_rows, 3, plot_ind)
         # ax = plt.gca()
         #df = pd.read_csv(os.path.join(data_path, env+'.csv'))
         # data = df.to_numpy()
@@ -180,24 +180,24 @@ def main():
             mean_val = df['agent1_rew']['mean'].to_numpy()
             max_val = df['agent1_rew']['max'].to_numpy()
             min_val = df['agent1_rew']['min'].to_numpy()
-            line, = plt.plot(x_axis, mean_val, label=env, linewidth=0.6, color=color_map[algo], linestyle='-')
+            line, = ax.plot(x_axis, mean_val, label=env, linewidth=0.6, color=color_map[algo], linestyle='-')
             algo_lines[algo] = line
             # print(mean_val, max_val, min_val)
-            plt.fill_between(x_axis, min_val, max_val, alpha=0.3, facecolor=color_map[algo])
+            ax.fill_between(x_axis, min_val, max_val, alpha=0.3, facecolor=color_map[algo])
         # plt.set_ylabel('between y1 and 0')
         rand_reward = random_data[env]['mean_rewards']['first']
-        rand_line, = plt.plot(x_axis,rand_reward*np.ones_like(x_axis), label=env, linewidth=0.6, color='#A0522D', linestyle='-')
+        rand_line, = ax.plot(x_axis, rand_reward*np.ones_like(x_axis), label=env, linewidth=0.6, color='#A0522D', linestyle='-')
 
-        plt.xlabel('Steps', labelpad=1)
-        plt.ylabel('Average Total Reward', labelpad=1)
-        plt.title(get_exp_label(env))
+        ax.xlabel('Steps', labelpad=1)
+        ax.ylabel('Average Total Reward', labelpad=1)
+        ax.title(get_exp_label(env))
         #plt.xticks(ticks=[10000,20000,30000,40000,50000],labels=['10k','20k','30k','40k','50k'])
         #plt.xlim(0, 60000)
         #plt.yticks(ticks=[0,150,300,450,600],labels=['0','150','300','450','600'])
         #plt.ylim(-150, 750)
-        plt.tight_layout()
+        # plt.tight_layout()
         #plt.legend(loc='lower center', ncol=2, labelspacing=.2, columnspacing=.25, borderpad=.25, bbox_to_anchor=(0.5, -0.6))
-        plt.margins(x=0)
+        ax.margins(x=0)
         plot_ind += 1
 
     oop_name = "Random" if not vs_builtin else "Builtin"
@@ -207,9 +207,10 @@ def main():
     }
     name_sublist = [name_map[algo] for algo in all_algo_names]
     lint_sublist = [algo_lines[algo] for algo in all_algo_names]
-    plt.figlegend(lint_sublist+[rand_line],name_sublist + [ f"Random Agent vs {oop_name} Agent"], fontsize='x-large', loc='lower center', ncol=1, labelspacing=.2, columnspacing=.25, borderpad=.25, bbox_to_anchor=(0.68,0.06))
-    plt.savefig(f"{csv_name}.pgf", bbox_inches = 'tight',pad_inches = .025)
-    plt.savefig(f"{csv_name}.png", bbox_inches = 'tight',pad_inches = .025, dpi=600)
+    plt.figlegend(lint_sublist+[rand_line], name_sublist + [f"Random Agent vs {oop_name} Agent"], fontsize='x-large', loc='lower center', ncol=1, labelspacing=.2, columnspacing=.25, borderpad=.25, bbox_to_anchor=(0.68,0.06))
+    plt.savefig(f"{csv_name}.pgf", bbox_inches='tight', pad_inches=.025)
+    plt.savefig(f"{csv_name}.png", bbox_inches='tight', pad_inches=.025, dpi=600)
+
 
 if __name__ == "__main__":
     main()
