@@ -12,7 +12,7 @@ experiment_configs = [
 
 envs = [env for env in builtin_envs if 'tennis' not in env]
 num_frames = 50000000
-num_experiments = 2
+num_experiments = 3
 num_parallel = 2
 # for env_name in sorted(all_environments):
 run_strs = []
