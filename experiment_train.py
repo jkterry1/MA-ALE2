@@ -13,6 +13,10 @@ import numpy as np
 import time
 import random
 
+import datetime
+def datetime_str():
+    now = datetime.datetime.now()
+    return now.strftime("%Y-%m-%d_%H:%M:%S")
 
 trainer_types = {
     "shared_rainbow": make_rainbow_preset,
@@ -59,7 +63,7 @@ def main():
     experiment, preset, env = trainer_types[args.trainer_type](args.env, args.device, args.replay_buffer_size)
     env.seed(args.experiment_seed)
     # run_experiment()
-    save_folder = f"checkpoint/{args.trainer_type}/{args.env}/{experiment_name}"
+    save_folder = f"checkpoint/{args.trainer_type}/{args.env}/{experiment_name}/{args.experiment_seed}_{datetime_str()}"
     os.makedirs(save_folder)
     num_frames_train = int(args.frames)
     frames_per_save = num_frames_train//100
