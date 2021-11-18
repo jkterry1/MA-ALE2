@@ -1,5 +1,10 @@
 from all_envs import all_environments, builtin_envs
 import subprocess
+import argparse 
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--seed-start", default=0, type=int)
+args = parser.parse_args() 
 
 experiment_configs = [
     # ("shared_ppo", 1),
@@ -19,7 +24,8 @@ run_strs = []
 for env_name in sorted(envs):
     for exp_num in range(num_experiments):
         for algo_name, replay_size in experiment_configs:
-            run_strs.append(f"python experiment_train.py {env_name} {algo_name} --replay_buffer_size={replay_size} --frames={num_frames} --experiment-seed={exp_num}")
+            seed = args.seed_start + exp_num 
+            run_strs.append(f"python experiment_train.py {env_name} {algo_name} --replay_buffer_size={replay_size} --frames={num_frames} --experiment-seed={seed}")
 for run_i in range(len(run_strs) // num_parallel):
     offset = num_parallel * run_i
     runs = run_strs[offset:offset+num_parallel]
