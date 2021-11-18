@@ -19,6 +19,7 @@
 See the paper https://arxiv.org/abs/1603.01121 for more details.
 '''
 
+import copy
 import random
 import collections
 import enum
@@ -28,7 +29,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from all.agents import Rainbow
+from all.agents import Rainbow, Agent
 from all.approximation import QDist, FixedTarget
 from all.bodies import DeepmindAtariBody
 from all.logging import DummyWriter
@@ -41,7 +42,10 @@ from all.agents.independent import IndependentMultiagent
 from shared_utils import DummyEnv, IndicatorBody, IndicatorState
 from all.environments import MultiagentPettingZooEnv
 from all.experiments.multiagent_env_experiment import MultiagentEnvExperiment
+from all.approximation import Approximation
 from env_utils import make_env
+from typing import Tuple
+from torch import TensorType
 
 
 
@@ -203,7 +207,6 @@ class NFSPRainbowAgent(Rainbow):
                and self._frames_seen % self.update_frequency == 0 \
                and len(self._reservoir_buffer) >= self.minibatch_size
 
-
     def _compute_target_dist(self, states, rewards):
         actions = self._best_actions(self.q_dist.no_grad(states))
         dist = self.q_dist.target(states, actions)
@@ -216,6 +219,57 @@ class NFSPRainbowAgent(Rainbow):
         log_dist = torch.log(torch.clamp(dist, min=self.eps))
         log_target_dist = torch.log(torch.clamp(target_dist, min=self.eps))
         return (target_dist * (log_target_dist - log_dist)).sum(dim=-1)
+
+class NFSPRainbowTestAgent(Agent):
+    def __init__(self, qdist, avg_policy, anticipatory=0.1, device='cuda'):
+        self.q_dist = qdist
+        self._avg_policy = avg_policy
+        self.anticipatory = anticipatory
+        self._device = device
+
+    def act(self, state):
+        if self._first_ep_step(state):
+            self.sample_episode_policy()
+
+        if self._mode == 'best_response':
+            self._action = self._choose_action(state).squeeze().to(self._device)
+        elif self._mode == 'average_policy':
+            self._action = self._average_action(state).to(self._device)
+        else: raise ValueError
+        self._state = state
+
+        return self._action
+
+    def sample_episode_policy(self):
+        """Sample average/best_response policy"""
+        if np.random.rand() < self.anticipatory:
+            self._mode = 'best_response'
+        else:
+            self._mode = 'average_policy'
+
+    def _first_ep_step(self, state) -> bool:
+        """whether current timestep is the beginning of an episode"""
+        return state['ep_step'] == 0
+
+    def _choose_action(self, state):
+        if self._should_explore():
+            return torch.randint(0, self.q_dist.n_actions, size=(1,))
+        return self._best_actions(self.q_dist.no_grad(state)) # .item()
+
+    def _best_actions(self, probs):
+        q_values = (probs * self.q_dist.atoms).sum(dim=-1)
+        return torch.argmax(q_values, dim=-1)
+
+    def _average_action(self, state) -> Tuple[TensorType, TensorType]:
+        # logits = self._avg_policy(state).sum(dim=-1) # Batch x Actions
+        logits = self._avg_policy(state) # batch x actions
+        probs = F.softmax(logits, dim=-1)
+        actions = probs.multinomial(1).squeeze()
+
+        return actions
+
+    def _should_explore(self):
+        return False
 
 
 class NFSPRainbowPreset(Preset):
@@ -276,18 +330,6 @@ class NFSPRainbowPreset(Preset):
             lr=self.hyperparameters['lr'],
             eps=self.hyperparameters['eps']
         )
-        # avg_policy = QDist(
-        #     self.avg_model,
-        #     sl_optimizer,
-        #     self.n_actions,
-        #     self.hyperparameters['atoms'],
-        #     scheduler=CosineAnnealingLR(optimizer, n_updates),
-        #     v_min=self.hyperparameters['v_min'],
-        #     v_max=self.hyperparameters['v_max'],
-        #     target=FixedTarget(self.hyperparameters['target_update_frequency']),
-        #     writer=writer,
-        # )
-        from all.approximation import Approximation
         avg_policy = Approximation(
             self.avg_model,
             sl_optimizer,
@@ -336,7 +378,30 @@ class NFSPRainbowPreset(Preset):
         })
 
     def test_agent(self):
-        pass
+        q_dist = QDist(
+            copy.deepcopy(self.model),
+            optimizer=None,
+            n_actions=self.n_actions,
+            n_atoms=self.hyperparameters['atoms'],
+            v_min=self.hyperparameters['v_min'],
+            v_max=self.hyperparameters['v_max'],
+        )
+        avg_policy = Approximation(
+            copy.deepcopy(self.avg_model),
+            optimizer=None,
+            name='average_policy',
+            device=self.device,
+        )
+        def make_agent(agent_id):
+            return DeepmindAtariBody(IndicatorBody(
+                NFSPRainbowTestAgent(q_dist, avg_policy, anticipatory=0.1),
+                self.agent_names.index(agent_id),
+                len(self.agent_names)
+            ))
+
+        return IndependentMultiagent({
+            agent_id: make_agent(agent_id) for agent_id in self.agent_names
+        })
 
 
 from my_env import MAPZEnvSteps

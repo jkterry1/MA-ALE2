@@ -104,7 +104,7 @@ from all.presets import IndependentMultiagentPreset, Preset
 from all.core import State
 import torch
 import supersuit as ss
-
+from my_env import MAPZEnvSteps
 
 class SingleEnvAgent(Agent):
     def __init__(self, agent):
@@ -172,7 +172,8 @@ def main():
             for agent_id in env.possible_agents
         })
         env = InvertColorAgentIndicator(env)
-    env = MultiagentPettingZooEnv(env, args.env, device=args.device)
+    # env = MultiagentPettingZooEnv(env, args.env, device=args.device)
+    env = MAPZEnvSteps(env, args.env, device=args.device)
     state = env.reset()
     agent.act(state)
 
