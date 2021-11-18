@@ -18,7 +18,7 @@ frames_per_save = num_frames_train//100
 eval_frames = 125000
 base_folder = "experiments/ppo_train"
 
-num_experiments = 5
+num_experiments = 3 #5
 
 vs_builtin = True
 
