@@ -4,7 +4,8 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed-start", default=0, type=int)
-args = parser.parse_args() 
+parser.add_argument("--num-parallel", default=1, type=int)
+args = parser.parse_args()
 
 experiment_configs = [
     # ("shared_ppo", 1),
@@ -18,8 +19,8 @@ experiment_configs = [
 envs = [env for env in builtin_envs if 'tennis' not in env]
 num_frames = 50000000
 num_experiments = 3
-num_parallel = 2
-# for env_name in sorted(all_environments):
+num_parallel = args.num_parallel
+
 run_strs = []
 for env_name in sorted(envs):
     for exp_num in range(num_experiments):
