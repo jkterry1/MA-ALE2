@@ -6,6 +6,8 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--num-parallel", default=1, type=int)
+parser.add_argument("--env", default="all", type=str,
+                    help="which env to eval - defaults to all built-ins")
 args = parser.parse_args()
 
 four_p_envs = {
@@ -22,6 +24,8 @@ experiment_configs = [
 ]
 
 envs = [env for env in builtin_envs if 'tennis' not in env]
+if args.env != "all":
+    envs = [args.env]  # only run the provided env
 num_frames_train = 50_000_000
 frames_per_save = num_frames_train//100
 
