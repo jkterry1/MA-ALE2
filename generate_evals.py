@@ -8,6 +8,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--num-parallel", default=1, type=int)
 parser.add_argument("--env", default="all", type=str,
                     help="which env to eval - defaults to all built-ins")
+parser.add_argument("--device", default="cuda", options=["cuda", "cpu"])
 args = parser.parse_args()
 
 four_p_envs = {
@@ -36,7 +37,7 @@ num_experiments = 3 #5
 
 vs_builtin = True
 
-device = "--device=cuda"
+device = "--device=" + args.device
 
 if vs_builtin:
     all_environments = {name:env for name, env in all_environments.items() if name in builtin_envs}
