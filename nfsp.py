@@ -79,6 +79,9 @@ default_hyperparameters = {
     "model_constructor": nature_rainbow
 }
 
+def save_name(trainer_type: str, env: str, replay_size: int, num_frames: int, seed: float):
+    return f"{trainer_type}/{env}/RB{replay_size}_F{num_frames}/S{seed}"
+
 
 
 class NFSPRainbowAgent(Rainbow):
@@ -408,7 +411,7 @@ from my_env import MAPZEnvSteps
 
 nfsp_rainbow = PresetBuilder('nfsp_rainbow', default_hyperparameters, NFSPRainbowPreset)
 
-def make_nfsp_rainbow(env_name, device, replay_buffer_size):
+def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     env = make_env(env_name)
     agent0 = env.possible_agents[0]
     obs_space = env.observation_spaces[agent0]
@@ -428,6 +431,7 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size):
         preset,
         multi_agent_env,
         write_loss=False,
+        logdir="runs/" + save_name('nfsp_rainbow', env_name, replay_buffer_size, kwargs['seed'], kwargs['num_frames'])
     )
     return experiment, preset, multi_agent_env
 

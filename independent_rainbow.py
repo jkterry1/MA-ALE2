@@ -165,7 +165,7 @@ def make_independ_rainbow_net(env, **kwargs):
     from models import impala_rainbow
     return impala_rainbow(env, channels=1, **kwargs)
 
-def make_indepedent_rainbow(env_name, device, replay_buffer_size):
+def make_indepedent_rainbow(env_name, device, replay_buffer_size, **kwargs):
     env = make_env(env_name)
     env = MultiagentPettingZooEnv(env, env_name, device=device)
     presets = {

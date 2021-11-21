@@ -12,7 +12,7 @@ from pettingzoo.utils import to_parallel
 from models import impala_features, impala_value_head, impala_policy_head, nature_features
 from env_utils import InvertColorAgentIndicator
 from all.bodies import DeepmindAtariBody
-from nfsp_models import ImpalaCNNLarge
+from models import ImpalaCNNLarge
 from all import nn
 
 
@@ -73,7 +73,7 @@ def largenet():
     return largenet
 
 
-def make_ppo_vec_largenet(env_name, device, _):
+def make_ppo_vec_largenet(env_name, device, _, **kwargs):
     venv = make_vec_env(env_name, device)
     n_steps = (128*32*2) // venv.num_envs
     preset = atari.ppo.env(venv).device(device).hyperparameters(

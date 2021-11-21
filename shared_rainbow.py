@@ -19,6 +19,7 @@ from all.experiments.multiagent_env_experiment import MultiagentEnvExperiment
 from all.presets import atari
 import os
 import torch
+from models import nature_features
 
 
 default_hyperparameters = {
@@ -190,7 +191,7 @@ def nat_features(env, frames=4, **kwargs):
     return nature_features(env, frames=10)
 
 
-def make_rainbow_preset(env_name, device, replay_buffer_size):
+def make_rainbow_preset(env_name, device, replay_buffer_size, **kwargs):
     env = make_env(env_name)
     agent0 = env.possible_agents[0]
     obs_space = env.observation_spaces[agent0]

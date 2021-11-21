@@ -8,7 +8,7 @@ import torch
 from shared_rainbow import make_rainbow_preset
 from independent_rainbow import make_indepedent_rainbow
 from shared_ppo import make_ppo_vec, make_ppo_vec_largenet
-from nfsp import make_nfsp_rainbow
+from nfsp import make_nfsp_rainbow, save_name
 import numpy as np
 import time
 import random
@@ -58,12 +58,13 @@ def main():
     random.seed(args.experiment_seed)
     torch.manual_seed(args.experiment_seed)
 
-    experiment_name = f"RB{args.replay_buffer_size}_F{args.frames}_S{args.experiment_seed}"
-
-    experiment, preset, env = trainer_types[args.trainer_type](args.env, args.device, args.replay_buffer_size)
+    experiment, preset, env = trainer_types[args.trainer_type](args.env, args.device, args.replay_buffer_size,
+                                                               seed=args.experiment_seed,
+                                                               num_frames=args.frames)
     env.seed(args.experiment_seed)
     # run_experiment()
-    save_folder = f"checkpoint/{args.trainer_type}/{args.env}/{experiment_name}/{args.experiment_seed}_{datetime_str()}"
+    save_folder = "checkpoint/" + save_name(args.trainer_type, args.env, args.replay_buffer_size,
+                                            args.frames, args.experiment_seed)
     os.makedirs(save_folder)
     num_frames_train = int(args.frames)
     frames_per_save = num_frames_train//100
