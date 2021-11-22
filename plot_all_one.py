@@ -13,10 +13,11 @@ import json
 from all_envs import all_environments
 
 def get_algo_name(experiment_name):
-    if 'shared_ppo' in experiment_name:
-        return 'shared_ppo'
-    else:
-        return "shared_rainbow"
+    trainer_types = ['shared_ppo', 'shared_rainbow', 'nfsp_rainbow']
+    for trainer in trainer_types:
+        if trainer in experiment_name:
+            return trainer
+    raise ValueError
 
 def get_env_name(experiment_name):
     for env_name in all_environments:
@@ -110,7 +111,7 @@ def main():
         "ytick.labelsize": 4,
         "text.usetex": True,
         "pgf.rcfonts": False
-    });
+    })
 
     csv_data = pandas.read_csv(csv_name)
     # print(csv_data['vs_random'])

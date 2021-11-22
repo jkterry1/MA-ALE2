@@ -51,7 +51,7 @@ from nfsp import save_name
 agent_2p_list = ["first_0", "second_0"]
 agent_4p_list = agent_2p_list + ["third_0", "fourth_0"]
 run_strs = []
-for env in all_environments:
+for env in envs:
     for experiment in range(num_experiments):
         for trainer, buf_size in experiment_configs:
             # handle datetime for multiples; grab most recent

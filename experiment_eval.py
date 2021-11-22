@@ -190,7 +190,7 @@ def main():
         returns = test_independent(env, agent, args.frames)
         print(returns)
         agent_names = ["first_0", "second_0", "third_0", "fourth_0"]
-        open("out.txt",'w').write(f"{args.folder},{args.checkpoint},{args.agent},{','.join(str(returns_agent(returns, agent)) for agent in agent_names)},{args.vs_random},{args.agent_random}\n")
+        open("out.txt",'a').write(f"{args.folder},{args.checkpoint},{args.agent},{','.join(str(returns_agent(returns, agent)) for agent in agent_names)},{args.vs_random},{args.agent_random}\n")
         #print(returns_agent1(returns))
         # preset = independent({agent:base_builder for agent in env.agents}).env(env).hyperparameters(replay_buffer_size=350000,replay_start_size=100)
         # agent = preset.agent()
