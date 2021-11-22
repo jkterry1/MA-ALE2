@@ -94,6 +94,8 @@ def main():
     parser.add_argument(
         "--vs-builtin", action="store_true", help="Play first_0 vs random for all other players."
     )
+    parser.add_argument("--render", action='store_true', default=False,
+                        help="show plot instead of saving with pgf encoding")
     args = parser.parse_args()
 
     # assert len(sys.argv) == 3, "must supply name of csv file and vs_random as arguments"
@@ -102,22 +104,24 @@ def main():
     vs_random = not args.no_vs_random#bool(sys.argv[2])
     vs_builtin = args.vs_builtin#bool(sys.argv[2])
 
-    matplotlib.use("pgf")
-    plt.rcParams.update({
-        "pgf.texsystem": "pdflatex",
-        "font.family": "serif",
-        "font.size": 6,
-        "legend.fontsize": 5,
-        "ytick.labelsize": 4,
-        "text.usetex": True,
-        "pgf.rcfonts": False
-    })
+    if not args.render:
+        matplotlib.use("pgf")
+        plt.rcParams.update({
+            "pgf.texsystem": "pdflatex",
+            "font.family": "serif",
+            "font.size": 6,
+            "legend.fontsize": 5,
+            "ytick.labelsize": 4,
+            "text.usetex": True,
+            "pgf.rcfonts": False
+        })
 
     csv_data = pandas.read_csv(csv_name)
     # print(csv_data['vs_random'])
     if not vs_builtin:
         csv_data = csv_data[csv_data['vs_random'] == vs_random]
-    csv_data['no_seed_experiment'] = [s.rsplit('_', 1)[0] for s in csv_data['experiment']]
+    csv_data['no_seed_experiment'] = [s.rsplit('/', 1)[0].rsplit('_', 1)[0]
+                                      for s in csv_data['experiment']]
     # print(len(csv_data['no_seed_experiment']))
     # print(len(set(csv_data['no_seed_experiment'])))
     # print(len(set(csv_data['checkpoint'])))
@@ -136,6 +140,10 @@ def main():
         'agent3_rew': ['mean', 'min', 'max'],
         'agent4_rew': ['mean', 'min', 'max'],
     })
+    if args.render:
+        ax = accumed.plot()
+        plt.show()
+
     # print(accumed)
     accumed.reset_index(inplace=True)
     # print(len(csv_data['agent1_rew']))
