@@ -171,6 +171,7 @@ def main():
     color_map = {
         'shared_ppo': "blue",
         'shared_rainbow': "orange",
+        'nfsp_rainbow': 'red',
     }
     plot_ind = 1
     num_envs = len(all_envs)
@@ -197,9 +198,9 @@ def main():
         rand_reward = random_data[env]['mean_rewards']['first']
         rand_line, = ax.plot(x_axis, rand_reward*np.ones_like(x_axis), label=env, linewidth=0.6, color='#A0522D', linestyle='-')
 
-        ax.xlabel('Steps', labelpad=1)
-        ax.ylabel('Average Total Reward', labelpad=1)
-        ax.title(get_exp_label(env))
+        ax.set_xlabel('Steps', labelpad=1)
+        ax.set_ylabel('Average Total Reward', labelpad=1)
+        ax.set_title(get_exp_label(env))
         #plt.xticks(ticks=[10000,20000,30000,40000,50000],labels=['10k','20k','30k','40k','50k'])
         #plt.xlim(0, 60000)
         #plt.yticks(ticks=[0,150,300,450,600],labels=['0','150','300','450','600'])
@@ -213,12 +214,16 @@ def main():
     name_map = {
         'shared_ppo': f"PPO Agent vs {oop_name} Agent",
         'shared_rainbow': f"Rainbow Agent vs {oop_name} Agent",
+        'nfsp_rainbow': f"NFSP Agent vs {oop_name} Agent",
     }
     name_sublist = [name_map[algo] for algo in all_algo_names]
     lint_sublist = [algo_lines[algo] for algo in all_algo_names]
     plt.figlegend(lint_sublist+[rand_line], name_sublist + [f"Random Agent vs {oop_name} Agent"], fontsize='x-large', loc='lower center', ncol=1, labelspacing=.2, columnspacing=.25, borderpad=.25, bbox_to_anchor=(0.68,0.06))
-    plt.savefig(f"{csv_name}.pgf", bbox_inches='tight', pad_inches=.025)
-    plt.savefig(f"{csv_name}.png", bbox_inches='tight', pad_inches=.025, dpi=600)
+    if args.render:
+        plt.show()
+    else:
+        plt.savefig(f"{csv_name}.pgf", bbox_inches='tight', pad_inches=.025)
+        plt.savefig(f"{csv_name}.png", bbox_inches='tight', pad_inches=.025, dpi=600)
 
 
 if __name__ == "__main__":
