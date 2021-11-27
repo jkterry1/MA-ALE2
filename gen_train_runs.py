@@ -5,6 +5,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed-start", default=0, type=int)
 parser.add_argument("--num-parallel", default=1, type=int)
+parser.add_argument("--env", type=str, default="all")
 args = parser.parse_args()
 
 experiment_configs = [
@@ -17,6 +18,8 @@ experiment_configs = [
 ]
 
 envs = [env for env in builtin_envs if 'tennis' not in env]
+if args.env != "all":
+    envs = [args.env]  # only run the provided env
 num_frames = 50000000
 num_experiments = 3
 num_parallel = args.num_parallel

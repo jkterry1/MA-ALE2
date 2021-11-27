@@ -9,6 +9,7 @@ parser.add_argument("--num-parallel", default=1, type=int)
 parser.add_argument("--env", default="all", type=str,
                     help="which env to eval - defaults to all built-ins")
 parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
+parser.add_argument("--generate-gif", action='store_true', default=False)
 args = parser.parse_args()
 
 four_p_envs = {
@@ -29,6 +30,7 @@ if args.env != "all":
     envs = [args.env]  # only run the provided env
 num_frames_train = 50_000_000
 frames_per_save = num_frames_train//100
+generate_gif = "--generate-gif" if args.generate_gif else ""
 
 eval_frames = 125000
 base_folder = "checkpoint"
@@ -79,7 +81,7 @@ for env in envs:
                     vs_builtin_str = "--vs-builtin" if vs_builtin else ''
                     frames = eval_frames
 
-                    run_strs.append(f"python experiment_eval.py {env} {checkpoint:09d} {seed_folder} --frames={frames} --agent={agent} {vs_random} {vs_builtin_str} {device}")
+                    run_strs.append(f"python experiment_eval.py {env} {checkpoint:09d} {seed_folder} --frames={frames} --agent={agent} {vs_random} {vs_builtin_str} {device} {generate_gif}")
         # frames = eval_frames*4
 
 num_parallel = args.num_parallel
