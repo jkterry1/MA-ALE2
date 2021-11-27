@@ -231,24 +231,8 @@ class NFSPRainbowTestAgent(Agent):
         self._device = device
 
     def act(self, state):
-        if self._first_ep_step(state):
-            self.sample_episode_policy()
+        return self._choose_action(state).squeeze().to(self._device)
 
-        if self._mode == 'best_response':
-            self._action = self._choose_action(state).squeeze().to(self._device)
-        elif self._mode == 'average_policy':
-            self._action = self._average_action(state).to(self._device)
-        else: raise ValueError
-        self._state = state
-
-        return self._action
-
-    def sample_episode_policy(self):
-        """Sample average/best_response policy"""
-        if np.random.rand() < self.anticipatory:
-            self._mode = 'best_response'
-        else:
-            self._mode = 'average_policy'
 
     def _first_ep_step(self, state) -> bool:
         """whether current timestep is the beginning of an episode"""
@@ -262,14 +246,6 @@ class NFSPRainbowTestAgent(Agent):
     def _best_actions(self, probs):
         q_values = (probs * self.q_dist.atoms).sum(dim=-1)
         return torch.argmax(q_values, dim=-1)
-
-    def _average_action(self, state) -> Tuple[TensorType, TensorType]:
-        # logits = self._avg_policy(state).sum(dim=-1) # Batch x Actions
-        logits = self._avg_policy(state) # batch x actions
-        probs = F.softmax(logits, dim=-1)
-        actions = probs.multinomial(1).squeeze()
-
-        return actions
 
     def _should_explore(self):
         return False
