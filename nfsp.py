@@ -385,7 +385,7 @@ class NFSPRainbowPreset(Preset):
 
 from my_env import MAPZEnvSteps
 
-nfsp_rainbow = PresetBuilder('nfsp_rainbow', default_hyperparameters, NFSPRainbowPreset)
+nfsp_rainbow_builder = PresetBuilder('nfsp_rainbow', default_hyperparameters, NFSPRainbowPreset)
 
 def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     env = make_env(env_name)
@@ -397,7 +397,7 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
         assert act_space == env.action_spaces[agent]
     env_agents = env.possible_agents
     multi_agent_env = MAPZEnvSteps(env, env_name, device=device)
-    preset = nfsp_rainbow.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).device(device).env(
+    preset = nfsp_rainbow_builder.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).device(device).env(
         DummyEnv(
             obs_space, act_space, env_agents
         )
@@ -406,7 +406,6 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     experiment = MultiagentEnvExperiment(
         preset,
         multi_agent_env,
-        write_loss=False,
         logdir="runs/" + save_name('nfsp_rainbow', env_name, replay_buffer_size, kwargs['seed'], kwargs['num_frames'])
     )
     return experiment, preset, multi_agent_env

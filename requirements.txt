@@ -1,4 +1,4 @@
-git+https://github.com/cpnota/autonomous-learning-library/tree/develop
+git+https://github.com/kcorder/autonomous-learning-library.git
 pettingzoo
 supersuit
 stable_baselines3
