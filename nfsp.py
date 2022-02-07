@@ -57,6 +57,7 @@ default_hyperparameters = {
     "minibatch_size": 128,
     "update_frequency": 32,
     "target_update_frequency": 1000,
+    "gradient_steps": None, # MUST be filled in by hparam search
     # Replay buffer settings
     "replay_start_size": 20000,
     "replay_buffer_size": 1000000,
@@ -75,8 +76,10 @@ default_hyperparameters = {
     "v_max": 10,
     # Noisy Nets
     "sigma": 0.5,
+    # NFSP
+    "anticipatory": 0.1,
     # Model construction
-    "model_constructor": nature_rainbow
+    "model_constructor": nature_rainbow,
 }
 
 def save_name(trainer_type: str, env: str, replay_size: int, num_frames: int, seed: float):
@@ -263,13 +266,10 @@ class NFSPRainbowPreset(Preset):
         # Build model
         self.model = hparams['model_constructor'](env, frames=10, atoms=hparams["atoms"],
                                                   sigma=hparams["sigma"]).to(device)
-        # self.avg_model = hparams['model_constructor'](env, frames=10, atoms=hparams["atoms"],
-        #                                           sigma=hparams["sigma"]).to(device)
         from all.nn import RLNetwork, NoisyFactorizedLinear
         self.avg_model = RLNetwork(nn.Sequential(
             nature_features(frames=10),
             NoisyFactorizedLinear(512, env.action_space.n),
-            # nature_policy_head(env)
         )).to(device)
 
 
@@ -328,6 +328,7 @@ class NFSPRainbowPreset(Preset):
                         replay_buffer,
                         avg_policy,
                         reservoir_buffer,
+                        anticipatory=self.hyperparameters['anticipatory'],
                         exploration=LinearScheduler(
                             self.hyperparameters['initial_exploration'],
                             self.hyperparameters['final_exploration'],
@@ -373,7 +374,7 @@ class NFSPRainbowPreset(Preset):
         )
         def make_agent(agent_id):
             return DeepmindAtariBody(IndicatorBody(
-                NFSPRainbowTestAgent(q_dist, avg_policy, anticipatory=0.1),
+                NFSPRainbowTestAgent(q_dist, avg_policy, anticipatory=self.hyperparameters['anticipatory']),
                 self.agent_names.index(agent_id),
                 len(self.agent_names)
             ))
@@ -389,6 +390,7 @@ nfsp_rainbow_builder = PresetBuilder('nfsp_rainbow', default_hyperparameters, NF
 
 def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     env = make_env(env_name)
+    test_env = make_env(env_name, vs_builtin=True)
     agent0 = env.possible_agents[0]
     obs_space = env.observation_spaces[agent0]
     act_space = env.action_spaces[agent0]
@@ -397,7 +399,11 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
         assert act_space == env.action_spaces[agent]
     env_agents = env.possible_agents
     multi_agent_env = MAPZEnvSteps(env, env_name, device=device)
-    preset = nfsp_rainbow_builder.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).device(device).env(
+    multi_agent_test_env = MAPZEnvSteps(test_env, env_name, device=device)
+
+    hparams = kwargs.get('hparams', {})
+
+    preset = nfsp_rainbow_builder.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).hyperparameters(**hparams).device(device).env(
         DummyEnv(
             obs_space, act_space, env_agents
         )
@@ -406,7 +412,8 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     experiment = MultiagentEnvExperiment(
         preset,
         multi_agent_env,
-        logdir="runs/" + save_name('nfsp_rainbow', env_name, replay_buffer_size, kwargs['seed'], kwargs['num_frames'])
+        logdir="runs/" + save_name('nfsp_rainbow', env_name, replay_buffer_size, kwargs['seed'], kwargs['num_frames']),
+        test_env=multi_agent_test_env,
     )
     return experiment, preset, multi_agent_env
 
@@ -414,8 +421,7 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
 
 Transition = collections.namedtuple('Transition', 'info_state action_probs')
 
-
-from all.memory.replay_buffer import ReplayBuffer, ExperienceReplayBuffer
+from all.memory.replay_buffer import ExperienceReplayBuffer
 class ReservoirBuffer(ExperienceReplayBuffer):
     ''' Allows uniform sampling over a stream of data.
 
@@ -452,68 +458,3 @@ class ReservoirBuffer(ExperienceReplayBuffer):
         minibatch = random.sample(self.buffer, num_samples)
         return self._reshape(minibatch, torch.ones(num_samples, device=self.device))
 
-
-
-
-# def remove_illegal(action_probs, legal_actions):
-#     ''' Remove illegal actions and normalize the
-#         probability vector
-#     Args:
-#         action_probs (numpy.array): A 1 dimention numpy array.
-#         legal_actions (list): A list of indices of legal actions.
-#     Returns:
-#         probd (numpy.array): A normalized vector without legal actions.
-#     '''
-#     probs = np.zeros(action_probs.shape[0])
-#     probs[legal_actions] = action_probs[legal_actions]
-#     if np.sum(probs) == 0:
-#         probs[legal_actions] = 1 / len(legal_actions)
-#     else:
-#         probs /= sum(probs)
-#     return probs
-
-# class AveragePolicyNetwork(nn.Module):
-#     '''
-#     Approximates the history of action probabilities
-#     given state (average policy). Forward pass returns
-#     log probabilities of actions.
-#     '''
-#
-#     def __init__(self, num_actions=2, state_shape=None, mlp_layers=None):
-#         ''' Initialize the policy network.  It's just a bunch of ReLU
-#         layers with no activation on the final one, initialized with
-#         Xavier (sonnet.nets.MLP and tensorflow defaults)
-#
-#         Args:
-#             num_actions (int): number of output actions
-#             state_shape (list): shape of state tensor for each sample
-#             mlp_laters (list): output size of each mlp layer including final
-#         '''
-#         super(AveragePolicyNetwork, self).__init__()
-#
-#         self.num_actions = num_actions
-#         self.state_shape = state_shape
-#         self.mlp_layers = mlp_layers
-#
-#         # set up mlp w/ relu activations
-#         layer_dims = [np.prod(self.state_shape)] + self.mlp_layers
-#         mlp = [nn.Flatten()]
-#         mlp.append(nn.BatchNorm1d(layer_dims[0]))
-#         for i in range(len(layer_dims)-1):
-#             mlp.append(nn.Linear(layer_dims[i], layer_dims[i+1]))
-#             if i != len(layer_dims) - 2: # all but final have relu
-#                 mlp.append(nn.ReLU())
-#         self.mlp = nn.Sequential(*mlp)
-#
-#     def forward(self, s):
-#         ''' Log action probabilities of each action from state
-#
-#         Args:
-#             s (Tensor): (batch, state_shape) state tensor
-#
-#         Returns:
-#             log_action_probs (Tensor): (batch, num_actions)
-#         '''
-#         logits = self.mlp(s)
-#         log_action_probs = F.log_softmax(logits, dim=-1)
-#         return log_action_probs

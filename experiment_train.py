@@ -29,7 +29,7 @@ trainer_types = {
 
 
 
-def main():
+def main(return_eval=False):
     parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
     parser.add_argument("env", help="Name of the Atari game (e.g. Pong).")
     parser.add_argument("trainer_type", help="Name of the type of training method.")
@@ -71,8 +71,11 @@ def main():
     for frame in range(0,num_frames_train,frames_per_save):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame+frames_per_save:09d}.pt")
-    # experiment.test(episodes=5)
-    # experiment._save_model()
+
+    if return_eval:
+        returns = experiment.test(episodes=1)
+        experiment._save_model()
+        return returns
 
 
 
