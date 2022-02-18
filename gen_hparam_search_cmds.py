@@ -19,7 +19,7 @@ eval_envs = [
 
 lines = []
 for env in eval_envs:
-    lines.append(f"python -O hparam_search.py --env {env} --study-name {args.study_name} --db-password {args.db_password}")
+    lines.append(f"python -O hparam_search.py --env {env} --study-name {args.study_name} --db-password {args.db_password}\n")
 
 
 # Remove command file if already exists
