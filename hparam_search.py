@@ -137,7 +137,7 @@ def objective(trial):
 
     os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = num_frames_train // 10000
+    frames_per_save = num_frames_train // 100
     for frame in range(0, num_frames_train, frames_per_save):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
