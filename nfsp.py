@@ -317,8 +317,11 @@ class NFSPRainbowPreset(Preset):
             target=FixedTarget(self.hyperparameters['target_update_frequency']),
             writer=writer,
         )
-        reservoir_buffer = ReservoirBuffer(self.hyperparameters['replay_buffer_size'],
-                                           device=self.device)
+        reservoir_buffer = ReservoirBuffer(
+            self.hyperparameters['replay_buffer_size'],
+            device=self.device,
+            store_device="cpu",
+        )
 
         def make_agent(agent_id):
             agent = DeepmindAtariBody(
