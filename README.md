@@ -27,8 +27,11 @@ Plots can be found near the data file, i.e. `plot_data/all_out.txt.png`
     * all_envs.py  
         * contains list of pettingzoo environments that should be trained
     * env_utils.py
-        * contains environment preprocessing coe
+        * contains environment preprocessing code 
+    * my_env.py
+        * MultiagentPettingZooEnv wrapper needed for NFSP  
 * Policy code (each one of these has a function that makes a trainable ALL agent).
+    * nfsp.py
     * shared_ppo.py
     * shared_rainbow.py
     * shared_utils.py
@@ -37,7 +40,7 @@ Plots can be found near the data file, i.e. `plot_data/all_out.txt.png`
     * independent_ppo.py
     * model.py
         * some experimental models to use for policies
-*  Training code
+* Training code
     * experiment_train.py
         * trains agent returned by policy code
     * gen_train_runs.py
@@ -55,8 +58,11 @@ Plots can be found near the data file, i.e. `plot_data/all_out.txt.png`
 * Plotting code
     * plot_all_one.py
         * Looks at input csv file, specific random data file inside plot_data folder, and generates a plots with the results
-* Neural Fictitious self-play code (none of it fully working)
-    * nfsp_models.py
-        * some experimental models to use for NFSP
-    * neural_fictitious_selfplay.py
-        * Preliminary code with some NFSP logic. Not clear if it is worth using.
+* Hyperparameter search code 
+    * gen_hparam_search_cmds.py 
+        * Writes a file with many calls to "hparam_search.py", currently one per environment
+        * Set up like this to use the "cml.py" SLURM tool to easily run batch array jobs on CML
+    * hparam_search.py
+        * Uses optuna with provided study name (allowing distributed) to optimize over normalized env scores
+        * This is doing asynchronous optimization between envs, syncing to shared SQL result database
+* 
