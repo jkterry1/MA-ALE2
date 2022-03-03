@@ -170,7 +170,7 @@ if __name__ == "__main__":
                                     study_name=args.study_name,
                                     load_if_exists=True)
 
-    study.optimize(objective, n_trials=100, timeout=600)
+    study.optimize(objective, n_trials=1, timeout=600)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
