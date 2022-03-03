@@ -2,3 +2,8 @@ git+https://github.com/kcorder/autonomous-learning-library.git
 pettingzoo
 supersuit
 stable_baselines3
+optuna
+dill
+multi_agent_ale_py
+mysqlclient
+autorom
