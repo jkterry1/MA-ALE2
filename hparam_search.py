@@ -1,17 +1,10 @@
 from typing import Dict, Any
 import dill
 import json
-import copy
 import argparse
-from all.environments import MultiagentPettingZooEnv
-from all.experiments.multiagent_env_experiment import MultiagentEnvExperiment
-from all.presets import atari
 import os
 import torch
-from shared_rainbow import make_rainbow_preset
-from independent_rainbow import make_indepedent_rainbow
-from shared_ppo import make_ppo_vec, make_ppo_vec_largenet
-from nfsp import make_nfsp_rainbow, save_name
+from algorithms.nfsp import save_name
 import numpy as np
 import time
 import random

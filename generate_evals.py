@@ -48,7 +48,6 @@ def make_name_pre(trainer, env, buf_size, experiment):
     # return f"{trainer}_{env}_RB{buf_size}_F{num_frames_train}_S{experiment}"
     return f"{trainer}/{env}/RB{buf_size}_F{num_frames_train}_S{experiment}"
 
-from nfsp import save_name
 
 agent_2p_list = ["first_0", "second_0"]
 agent_4p_list = agent_2p_list + ["third_0", "fourth_0"]
