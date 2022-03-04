@@ -21,8 +21,6 @@ parser.add_argument("--device", default="cuda",
 parser.add_argument("--replay_buffer_size", default=1000000, type=int,
                     help="The size of the replay buffer, if applicable")
 parser.add_argument("--frames", type=int, default=50e6, help="The number of training frames.")
-parser.add_argument("--experiment-seed", type=int, default=int(time.time()),
-                    help="The unique id of the experiment run (for running multiple experiments).")
 parser.add_argument("--trainer-type", type=str, default="nfsp_rainbow")
 parser.add_argument("--num-eval-episodes", type=int, default=20,
                     help="how many evaluation episodes to run per training epoch")
@@ -110,20 +108,21 @@ def objective(trial):
     """Get hyperparams for trial"""
     hparams = sample_dqn_params(trial)
 
-    np.random.seed(args.experiment_seed)
-    random.seed(args.experiment_seed)
-    torch.manual_seed(args.experiment_seed)
+    seed = trial.number
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
 
     # set all hparams sampled from the trial
     experiment, preset, env = trainer_types[args.trainer_type](
         ENV_ID, args.device, args.replay_buffer_size,
-        seed=args.experiment_seed,
+        seed=seed,
         num_frames=args.frames,
         hparams=hparams
     )
     experiment.seed_env(args.experiment_seed)
     save_folder = "checkpoint/" + save_name(args.trainer_type, ENV_ID, args.replay_buffer_size,
-                                            args.frames, args.experiment_seed)
+                                            args.frames, seed)
     all_eval_returns = []
     norm_eval_returns = []
     norm_return = None
