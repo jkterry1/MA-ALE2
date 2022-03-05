@@ -9,9 +9,9 @@ import numpy as np
 import time
 import random
 from experiment_train import trainer_types
-
 import optuna
 from optuna.trial import TrialState
+from multiprocessing import Process
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -26,7 +26,10 @@ parser.add_argument("--num-eval-episodes", type=int, default=20,
                     help="how many evaluation episodes to run per training epoch")
 parser.add_argument("--local", action='store_true', default=False,
                     help="create study locally (no SQL database)")
-parser.add_argument("--env", type=str, required=True)
+parser.add_argument("--envs", type=str, required=True,
+                    help="must be comma-separated list of envs with no spaces!")
+parser.add_argument("--num-concurrent", type=int, default=1,
+                    help="how many trials to run concurrently")
 parser.add_argument("--study-name", type=str, default=None,
                     help="name of shared Optuna study for distributed training")
 parser.add_argument("--db-password", type=str)
@@ -36,7 +39,7 @@ args = parser.parse_args()
 
 SQL_ADDRESS = f"mysql://database:{args.db_password}@35.194.57.226/maale"
 
-ENV_ID = args.env
+env_list = args.envs.split(',')
 
 
 
@@ -103,8 +106,7 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     return (score - builtin_score) / (rand_score - builtin_score)
 
 
-def objective(trial):
-
+def objective(trial, env_id: str, parallel_num: int):
     """Get hyperparams for trial"""
     hparams = sample_dqn_params(trial)
 
@@ -115,14 +117,15 @@ def objective(trial):
 
     # set all hparams sampled from the trial
     experiment, preset, env = trainer_types[args.trainer_type](
-        ENV_ID, args.device, args.replay_buffer_size,
+        env_id, args.device, args.replay_buffer_size,
         seed=seed,
         num_frames=args.frames,
         hparams=hparams
     )
-    experiment.seed_env(args.experiment_seed)
-    save_folder = "checkpoint/" + save_name(args.trainer_type, ENV_ID, args.replay_buffer_size,
-                                            args.frames, seed)
+    experiment.seed_env(seed)
+    save_folder = "checkpoint/" \
+                  + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed) \
+                  + f"/{parallel_num}"
     all_eval_returns = []
     norm_eval_returns = []
     norm_return = None
@@ -137,7 +140,7 @@ def objective(trial):
         eval_returns = experiment.test(episodes=args.num_eval_episodes)
         for aid, returns in eval_returns.items():
             mean_return = np.mean(returns)
-            norm_return = normalize_score(mean_return, env_id=ENV_ID)
+            norm_return = normalize_score(mean_return, env_id=env_id)
             all_eval_returns.append(mean_return)
             norm_eval_returns.append(norm_return)
         experiment._save_model()
@@ -162,7 +165,16 @@ if __name__ == "__main__":
                                     study_name=args.study_name,
                                     load_if_exists=True)
 
-    study.optimize(objective, n_trials=100, timeout=600)
+    procs = []
+    for env_id in env_list:
+        for i in range(args.num_concurrent):
+            objective_fn = lambda trial: objective(trial, env_id=env_id, parallel_num=i)
+            proc_target = lambda: study.optimize(objective_fn, n_trials=100//args.num_concurrent, timeout=600)
+            p = Process(target=proc_target)
+            p.start()
+            procs.append(p)
+    for p in procs:
+        p.join()
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
