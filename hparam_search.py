@@ -18,6 +18,7 @@ def validate_args(args: Namespace):
     env_list = args.envs.split(',')
     if len(env_list) > 1 and args.num_concurrent > 1:
         raise ValueError("This hasn't been tested!")
+    return args
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
