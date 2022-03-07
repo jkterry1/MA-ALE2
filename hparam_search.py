@@ -6,12 +6,18 @@ import os
 import torch
 from algorithms.nfsp import save_name
 import numpy as np
-import time
+from argparse import Namespace
 import random
 from experiment_train import trainer_types
 import optuna
 from optuna.trial import TrialState
 from multiprocessing import Process
+
+
+def validate_args(args: Namespace):
+    env_list = args.envs.split(',')
+    if len(env_list) > 1 and args.num_concurrent > 1:
+        raise ValueError("This hasn't been tested!")
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -34,6 +40,7 @@ parser.add_argument("--study-name", type=str, default=None,
                     help="name of shared Optuna study for distributed training")
 parser.add_argument("--db-password", type=str)
 args = parser.parse_args()
+args = validate_args(args)
 
 
 
@@ -106,9 +113,8 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     return (score - builtin_score) / (rand_score - builtin_score)
 
 
-def objective(trial, env_id: str, parallel_num: int):
+def objective(trial, env_id: str, parallel_num: int, hparams: dict):
     """Get hyperparams for trial"""
-    hparams = sample_dqn_params(trial)
 
     seed = trial.number
     np.random.seed(seed)
@@ -168,7 +174,7 @@ if __name__ == "__main__":
     procs = []
     for env_id in env_list:
         for i in range(args.num_concurrent):
-            objective_fn = lambda trial: objective(trial, env_id=env_id, parallel_num=i)
+            objective_fn = lambda trial: objective(trial, env_id=env_id, parallel_num=i, hparams=sample_dqn_params(trial))
             proc_target = lambda: study.optimize(objective_fn, n_trials=100//args.num_concurrent, timeout=600)
             p = Process(target=proc_target)
             p.start()
