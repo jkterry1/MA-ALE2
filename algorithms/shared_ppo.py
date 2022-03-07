@@ -8,7 +8,6 @@ from all.core import State
 import torch
 from env_utils import make_env
 import supersuit as ss
-from pettingzoo.utils import to_parallel
 from models import impala_features, impala_value_head, impala_policy_head, nature_features
 from env_utils import InvertColorAgentIndicator
 from all.bodies import DeepmindAtariBody

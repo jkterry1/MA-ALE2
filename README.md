@@ -21,6 +21,15 @@ Generates the plots vs the random agent
 Plots can be found near the data file, i.e. `plot_data/all_out.txt.png`
 
 
+```
+python3 experiment_train.py boxing_v1 nfsp_rainbow  
+```
+
+```
+python3 hparam_search.py --env boxing_v1
+```
+
+
 ### Files
 
 * Environment code
