@@ -409,7 +409,7 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     preset = nfsp_rainbow_builder.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).hyperparameters(**hparams).device(device).env(
         DummyEnv(
             obs_space, act_space, env_agents
-        )
+        ) # why overwrite to dummy env?
     ).build()
 
     experiment = MultiagentEnvExperiment(
