@@ -39,13 +39,14 @@ parser.add_argument("--num-concurrent", type=int, default=1,
                     help="how many trials to run concurrently")
 parser.add_argument("--study-name", type=str, default=None,
                     help="name of shared Optuna study for distributed training")
+parser.add_argument("--db-name", type=str, default="maale",
+                    help="name of SQL table name. Uses old name as default for testing purposes.")
 parser.add_argument("--db-password", type=str)
 args = parser.parse_args()
-args = validate_args(args)
 
 
 
-SQL_ADDRESS = f"mysql://database:{args.db_password}@35.194.57.226/maale"
+SQL_ADDRESS = f"mysql://database:{args.db_password}@35.194.57.226/{args.db_name}"
 
 env_list = args.envs.split(',')
 
