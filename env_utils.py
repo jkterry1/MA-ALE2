@@ -72,7 +72,6 @@ def recolor_surround(surround_env):
 def get_base_builtin_env(env_name):
     name_no_version = env_name.rsplit("_", 1)[0]
     env = BaseAtariEnv(game=name_no_version, num_players=1, obs_type='grayscale_image')
-    print(env.reset())
     if name_no_version == "surround":
         env = recolor_surround(env)
     return env

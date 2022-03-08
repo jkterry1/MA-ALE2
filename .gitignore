@@ -5,3 +5,5 @@ frames
 *.mp4
 events.out.tfcache*
 .idea/
+runs/
+checkpoint/

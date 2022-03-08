@@ -11,6 +11,7 @@ from experiment_train import trainer_types
 import optuna
 from optuna.trial import TrialState
 from multiprocessing import Process
+from functools import partial
 
 
 
@@ -133,9 +134,10 @@ def objective(trial, env_id: str, parallel_num: int, hparams: dict):
     norm_eval_returns = []
     norm_return = None
 
-    os.makedirs(save_folder)
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = num_frames_train // 100
+    frames_per_save = max(num_frames_train // 100, 1)
     for frame in range(0, num_frames_train, frames_per_save):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
@@ -169,12 +171,12 @@ if __name__ == "__main__":
                                     load_if_exists=True)
 
     num_trials = 0
-    while num_trials < args.num_trials:
+    while num_trials < args.n_trials:
         procs = []
         for i in range(args.num_concurrent):
             # for each concurrent run, sample hparams ONCE for all envs
             num_trials += 1
-            sampled_objective = lambda trial, _env_id: objective(trial, env_id=_env_id, parallel_num=i, hparams=sample_dqn_params(trial))
+            sampled_objective = lambda trial, _env_id: objective(trial, env_id=_env_id, parallel_num=i, hparams=partial(sample_dqn_params, trial)())
             for env_id in env_list:
                 objective_fn = lambda trial: sampled_objective(trial, env_id)
                 proc_target = lambda: study.optimize(objective_fn, n_trials=1, timeout=600)
