@@ -1,6 +1,4 @@
 import argparse
-from all.presets import atari
-from timeit import default_timer as timer
 import torch
 torch.set_num_threads(1)
 import os
@@ -10,16 +8,13 @@ import subprocess
 import shutil
 from PIL import Image
 from env_utils import make_env, InvertColorAgentIndicator
-from all.environments import MultiagentPettingZooEnv
 from all.agents.independent import IndependentMultiagent
 
-from shared_rainbow import make_rainbow_preset
-from independent_rainbow import make_indepedent_rainbow
+from algorithms.shared_rainbow import make_rainbow_preset
+from algorithms.independent_rainbow import make_indepedent_rainbow
 # from ppo_ram import make_ppo_ram_vec
-from shared_ppo import make_ppo_vec
-from nfsp import make_nfsp_rainbow
-import supersuit as ss
-
+from algorithms.shared_ppo import make_ppo_vec
+from algorithms.nfsp import make_nfsp_rainbow
 
 trainer_types = {
     "shared_rainbow": make_rainbow_preset,
@@ -99,12 +94,9 @@ def returns_agent(returns, agent):
 
 
 from all.agents import Agent
-from all.logging import DummyWriter
-from all.presets import IndependentMultiagentPreset, Preset
 from all.core import State
 import torch
-import supersuit as ss
-from my_env import MAPZEnvSteps
+from env_utils import MAPZEnvSteps
 
 class SingleEnvAgent(Agent):
     def __init__(self, agent):

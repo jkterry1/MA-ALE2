@@ -387,7 +387,7 @@ class NFSPRainbowPreset(Preset):
         })
 
 
-from my_env import MAPZEnvSteps
+from env_utils import MAPZEnvSteps
 
 nfsp_rainbow_builder = PresetBuilder('nfsp_rainbow', default_hyperparameters, NFSPRainbowPreset)
 
