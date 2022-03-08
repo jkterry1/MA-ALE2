@@ -35,7 +35,7 @@ parser.add_argument("--study-name", type=str, default=None,
 parser.add_argument("--db-name", type=str, default="maale",
                     help="name of SQL table name. Uses old name as default for testing purposes.")
 parser.add_argument("--db-password", type=str)
-parser.add_argument("--n-trials", type=int, default=100,
+parser.add_argument("--num-trials", type=int, default=100,
                     help="number of trials for EACH environment, or how many times hparams are sampled.")
 args = parser.parse_args()
 
@@ -112,6 +112,10 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
 
 def objective(trial, env_id: str, parallel_num: int, hparams: dict):
     """Get hyperparams for trial"""
+    print("[Debug]")
+    print("trial:", trial.number)
+    print("env id:",env_id)
+    print("hparams:",hparams)
 
     seed = trial.number
     np.random.seed(seed)
@@ -133,13 +137,14 @@ def objective(trial, env_id: str, parallel_num: int, hparams: dict):
     norm_eval_returns = []
     norm_return = None
 
-    os.makedirs(save_folder)
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = num_frames_train // 100
+    frames_per_save = max(num_frames_train // 100, 1)
     for frame in range(0, num_frames_train, frames_per_save):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
-
+        
         eval_returns = experiment.test(episodes=args.num_eval_episodes)
         for aid, returns in eval_returns.items():
             mean_return = np.mean(returns)

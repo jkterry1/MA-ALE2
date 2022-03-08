@@ -403,13 +403,11 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     multi_agent_test_env = MAPZEnvSteps(test_env, env_name, device=device)
 
     hparams = kwargs.get('hparams', {})
-
     preset = nfsp_rainbow_builder.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).hyperparameters(**hparams).device(device).env(
         DummyEnv(
             obs_space, act_space, env_agents
         ) # why overwrite to dummy env?
     ).build()
-
     experiment = MultiagentEnvExperiment(
         preset,
         multi_agent_env,
