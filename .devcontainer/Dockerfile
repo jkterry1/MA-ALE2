@@ -24,7 +24,6 @@ RUN if [ -f "/tmp/conda-tmp/environment.yml" ]; then umask 0002 && /opt/conda/bi
 RUN sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev libgl1-mesa-glx
 COPY requirements.txt /tmp/requirements.txt
 WORKDIR /tmp
-# ENV PATH /opt/conda/bin:$PATH
 RUN conda create -y -n ale python==3.6.8
 SHELL ["/bin/bash", "-i", "-c"]
 RUN conda activate ale \
