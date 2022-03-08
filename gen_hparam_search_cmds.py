@@ -5,6 +5,7 @@ import pathlib
 parser = argparse.ArgumentParser()
 parser.add_argument("--study-name", type=str, required=True)
 parser.add_argument("--db-password", type=str, required=True)
+parser.add_argument("--db-name", type=str, required=True)
 parser.add_argument("--num-concurrent", type=int, default=1)
 args = parser.parse_args()
 
@@ -17,11 +18,12 @@ eval_envs = [
     "surround_v1",
     "tennis_v2",
 ]
+envs_str = ','.join(eval_envs)
 
 lines = []
-for env in eval_envs:
-    lines.append(f"python -O hparam_search.py --env {env} --study-name {args.study_name} "
-                 f"--db-password {args.db_password} --num-concurrent {args.num_concurrent}\n")
+lines.append(f"python -O hparam_search.py --envs {envs_str} --study-name {args.study_name} "
+             f"--db-password {args.db_password} --db-name {args.db_name} "
+             f"--num-concurrent {args.num_concurrent}\n")
 
 
 # Remove command file if already exists

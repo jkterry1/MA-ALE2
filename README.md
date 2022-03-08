@@ -1,10 +1,10 @@
-### Install
+## Install
 
 ```
 pip install -r requirements.txt 
 ```
 
-### Run
+## Run
 
 ```
 python3 plot_all_one.py plot_data/builtin_results.csv --vs-builtin
@@ -25,12 +25,34 @@ Plots can be found near the data file, i.e. `plot_data/all_out.txt.png`
 python3 experiment_train.py boxing_v1 nfsp_rainbow  
 ```
 
+### Basic local hyperparameter search 
 ```
-python3 hparam_search.py --env boxing_v1
+python3 hparam_search.py --env boxing_v1 --local 
+```
+
+### Evaluate with fixed checkpoint 
+```
+python3 experiment_eval.py boxing_v1 nfsp_rainbow [checkpoint_num] [path/to/checkpoint/dir] 
+```
+For example:  
+`python3 experiment_eval.py pong_v2 000500000 checkpoint/shared_rainbow/pong_v2/RB1000000_F50000000.0_S1636751414`
+
+### Run hyperparameter search on Slurm HPC 
+
+- Generate run command file:  
+```
+python gen_hparam_search_cmds.py --study-name [name] \ 
+    --db-password [password] --db-name [name] --num-concurrent [number]
+```
+- Start Slurm job (ensure enough resources are given!):
+```
+python cml.py hparam_search_cmds.txt --conda ma-ale --min_preemptions \
+    --gpus [num] --mem [48*num_gpus] > optuna.log 2>&1 
 ```
 
 
-### Files
+
+## Files Overview
 
 * Environment code
     * all_envs.py  
