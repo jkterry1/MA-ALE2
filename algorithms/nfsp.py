@@ -85,8 +85,6 @@ default_hyperparameters = {
 def save_name(trainer_type: str, env: str, replay_size: int, num_frames: int, seed: float):
     return f"{trainer_type}/{env}/RB{replay_size}_F{num_frames}/S{seed}"
 
-
-
 class NFSPRainbowAgent(Rainbow):
     """Rainbow agent with an additional AveragePolicyNetwork"""
     def __init__(self, q_dist, replay_buffer, avg_policy, reservoir_buffer,
