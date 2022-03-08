@@ -173,21 +173,36 @@ if __name__ == "__main__":
                                     study_name=args.study_name,
                                     load_if_exists=True)
 
-    num_trials = 0
-    while num_trials < args.num_trials:
-        procs = []
-        for i in range(args.num_concurrent):
-            # for each concurrent run, sample hparams ONCE for all envs
-            num_trials += 1
-            sampled_objective = lambda trial, _env_id: objective(trial, env_id=_env_id, parallel_num=i, hparams=sample_dqn_params(trial))
-            for env_id in env_list:
-                objective_fn = lambda trial: sampled_objective(trial, env_id)
-                proc_target = lambda: study.optimize(objective_fn, n_trials=1, timeout=600)
-                p = Process(target=proc_target)
-                p.start()
-                procs.append(p)
-        for p in procs:
-            p.join()
+    #### Original code #####################
+    # num_trials = 0
+    # while num_trials < args.num_trials:
+    #     procs = []
+    #     for i in range(args.num_concurrent):
+    #         # for each concurrent run, sample hparams ONCE for all envs
+    #         num_trials += 1
+    #         sampled_objective = lambda trial, _env_id: objective(trial, env_id=_env_id, parallel_num=i, hparams=sample_dqn_params(trial))
+    #         for env_id in env_list:
+    #             objective_fn = lambda trial: sampled_objective(trial, env_id)
+    #             proc_target = lambda: study.optimize(objective_fn, n_trials=1, timeout=600)
+    #             p = Process(target=proc_target)
+    #             p.start()
+    #             procs.append(p)
+    #     for p in procs:
+    #         p.join()
+
+    #### Jack's modified code ################
+    procs = []
+    for i in range(args.num_concurrent):
+        # for each concurrent run, sample hparams ONCE for all envs
+        sampled_objective = lambda trial, _env_id: objective(trial, env_id=_env_id, parallel_num=i, hparams=sample_dqn_params(trial))
+        for env_id in env_list:
+            objective_fn = lambda trial: sampled_objective(trial, env_id)
+            proc_target = lambda: study.optimize(objective_fn, n_trials=args.num_trials, timeout=600)
+            p = Process(target=proc_target)
+            p.start()
+            procs.append(p)
+    for p in procs:
+        p.join()
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
