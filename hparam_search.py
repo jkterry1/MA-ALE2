@@ -155,7 +155,7 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
 #
 #     return norm_return
 
-
+import time
 
 def train(hparams, seed, env_id):
     # set all hparams sampled from the trial
@@ -168,7 +168,7 @@ def train(hparams, seed, env_id):
     print(env_id, seed)
     print(hparams)
 
-    input("press enter to continue")
+    time.sleep(15)
     return 0
     experiment.seed_env(seed)
     save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed)
