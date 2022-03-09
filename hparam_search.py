@@ -119,6 +119,11 @@ def objective(trial, env_id: str, parallel_num: int, hparams: dict):
     random.seed(seed)
     torch.manual_seed(seed)
 
+    print("[Debug]")
+    print("trial",trial)
+    print("env id:",env_id)
+    print("hparams:",hparams)
+
     # set all hparams sampled from the trial
     experiment, preset, env = trainer_types[args.trainer_type](
         env_id, args.device, args.replay_buffer_size,
@@ -183,6 +188,7 @@ if __name__ == "__main__":
                 p = Process(target=proc_target)
                 p.start()
                 procs.append(p)
+
         for p in procs:
             p.join()
 
@@ -190,7 +196,7 @@ if __name__ == "__main__":
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
 
     print("Study statistics: ")
-    print("  Number of finished trials: ", len(study.trials))
+    print("  Number of finished trials: ", len(study.trials)) # study.trials is not working
     print("  Number of pruned trials: ", len(pruned_trials))
     print("  Number of complete trials: ", len(complete_trials))
 
