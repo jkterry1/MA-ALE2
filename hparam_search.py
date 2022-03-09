@@ -10,9 +10,9 @@ import random
 from experiment_train import trainer_types
 import optuna
 from optuna.trial import TrialState
-from multiprocessing import Process
 from functools import partial
-
+import time
+from multiprocessing import Pool
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -108,54 +108,7 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     builtin_score = builtin_rewards[env_id]['mean_rewards']['first']
     return (score - builtin_score) / (rand_score - builtin_score)
 
-#
-# def objective(trial, env_id: str, hparams: dict):
-#     """Get hyperparams for trial"""
-#     print(trial.number, env_id)
-#     print(hparams)
-#
-#     return 0
-#     seed = trial.number
-#     np.random.seed(seed)
-#     random.seed(seed)
-#     torch.manual_seed(seed)
-#
-#     # set all hparams sampled from the trial
-#     experiment, preset, env = trainer_types[args.trainer_type](
-#         env_id, args.device, args.replay_buffer_size,
-#         seed=seed,
-#         num_frames=args.frames,
-#         hparams=hparams
-#     )
-#     experiment.seed_env(seed)
-#     save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed)
-#     all_eval_returns = []
-#     norm_eval_returns = []
-#     norm_return = None
-#     if not os.path.isdir(save_folder):
-#         os.makedirs(save_folder)
-#     num_frames_train = int(args.frames)
-#     frames_per_save = max(num_frames_train // 100, 1)
-#     for frame in range(0, num_frames_train, frames_per_save):
-#         experiment.train(frames=frame)
-#         torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
-#
-#         eval_returns = experiment.test(episodes=args.num_eval_episodes)
-#         for aid, returns in eval_returns.items():
-#             mean_return = np.mean(returns)
-#             norm_return = normalize_score(mean_return, env_id=env_id)
-#             all_eval_returns.append(mean_return)
-#             norm_eval_returns.append(norm_return)
-#         experiment._save_model()
-#
-#         # Handle pruning based on the intermediate value.
-#         trial.report(value=norm_return, step=frame + frames_per_save)
-#         if trial.should_prune():
-#             raise optuna.exceptions.TrialPruned()
-#
-#     return norm_return
 
-import time
 
 def train(hparams, seed, env_id):
     # set all hparams sampled from the trial
@@ -199,7 +152,6 @@ def train(hparams, seed, env_id):
 
     return norm_return
 
-from multiprocessing import Pool
 def objective_all(trial):
     """Get hyperparams for trial"""
     hparams = sample_dqn_params(trial)
@@ -230,19 +182,6 @@ if __name__ == "__main__":
                                     study_name=args.study_name,
                                     load_if_exists=True)
 
-    # for _ in range(args.n_trials):
-    #     procs = []
-    #     # for each concurrent run, sample hparams ONCE for all envs
-    #     sampled_objective = lambda trial, _env_id: objective(trial, env_id=_env_id, hparams=partial(sample_dqn_params, trial)())
-    #     for env_id in env_list:
-    #         objective_fn = lambda trial: sampled_objective(trial, env_id)
-    #         study.optimize(objective_fn, n_trials=1, timeout=600, n_jobs=len(env_list))
-        #     proc_target = lambda: study.optimize(objective_fn, n_trials=1, timeout=600, n_jobs=len(env_list))
-        #     p = Process(target=proc_target)
-        #     p.start()
-        #     procs.append(p)
-        # for p in procs:
-        #     p.join()
     study.optimize(objective_all, n_trials=args.n_trials, timeout=600)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
