@@ -29,8 +29,6 @@ parser.add_argument("--local", action='store_true', default=False,
                     help="create study locally (no SQL database)")
 parser.add_argument("--envs", type=str, required=True,
                     help="must be comma-separated list of envs with no spaces!")
-parser.add_argument("--num-concurrent", type=int, default=1,
-                    help="how many trials to run concurrently")
 parser.add_argument("--study-name", type=str, default=None,
                     help="name of shared Optuna study for distributed training")
 parser.add_argument("--db-name", type=str, default="maale",
@@ -110,15 +108,56 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     builtin_score = builtin_rewards[env_id]['mean_rewards']['first']
     return (score - builtin_score) / (rand_score - builtin_score)
 
+#
+# def objective(trial, env_id: str, hparams: dict):
+#     """Get hyperparams for trial"""
+#     print(trial.number, env_id)
+#     print(hparams)
+#
+#     return 0
+#     seed = trial.number
+#     np.random.seed(seed)
+#     random.seed(seed)
+#     torch.manual_seed(seed)
+#
+#     # set all hparams sampled from the trial
+#     experiment, preset, env = trainer_types[args.trainer_type](
+#         env_id, args.device, args.replay_buffer_size,
+#         seed=seed,
+#         num_frames=args.frames,
+#         hparams=hparams
+#     )
+#     experiment.seed_env(seed)
+#     save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed)
+#     all_eval_returns = []
+#     norm_eval_returns = []
+#     norm_return = None
+#     if not os.path.isdir(save_folder):
+#         os.makedirs(save_folder)
+#     num_frames_train = int(args.frames)
+#     frames_per_save = max(num_frames_train // 100, 1)
+#     for frame in range(0, num_frames_train, frames_per_save):
+#         experiment.train(frames=frame)
+#         torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
+#
+#         eval_returns = experiment.test(episodes=args.num_eval_episodes)
+#         for aid, returns in eval_returns.items():
+#             mean_return = np.mean(returns)
+#             norm_return = normalize_score(mean_return, env_id=env_id)
+#             all_eval_returns.append(mean_return)
+#             norm_eval_returns.append(norm_return)
+#         experiment._save_model()
+#
+#         # Handle pruning based on the intermediate value.
+#         trial.report(value=norm_return, step=frame + frames_per_save)
+#         if trial.should_prune():
+#             raise optuna.exceptions.TrialPruned()
+#
+#     return norm_return
 
-def objective(trial, env_id: str, parallel_num: int, hparams: dict):
-    """Get hyperparams for trial"""
 
-    seed = trial.number
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
 
+def train(hparams, seed, env_id):
     # set all hparams sampled from the trial
     experiment, preset, env = trainer_types[args.trainer_type](
         env_id, args.device, args.replay_buffer_size,
@@ -126,10 +165,12 @@ def objective(trial, env_id: str, parallel_num: int, hparams: dict):
         num_frames=args.frames,
         hparams=hparams
     )
+    print(env_id, seed)
+    print(hparams)
+
+    return 0
     experiment.seed_env(seed)
-    save_folder = "checkpoint/" \
-                  + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed) \
-                  + f"/{parallel_num}"
+    save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed)
     all_eval_returns = []
     norm_eval_returns = []
     norm_return = None
@@ -157,6 +198,24 @@ def objective(trial, env_id: str, parallel_num: int, hparams: dict):
 
     return norm_return
 
+from multiprocessing import Pool
+def objective_all(trial):
+    """Get hyperparams for trial"""
+    hparams = sample_dqn_params(trial)
+    print(hparams)
+
+    # return 0
+    seed = trial.number
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    p = Pool(processes=len(env_list))
+    norm_returns = p.map(partial(train, hparams, seed), env_list)
+    p.close()
+    print(norm_returns)
+
+    return np.mean(norm_returns)
 
 
 if __name__ == "__main__":
@@ -170,21 +229,20 @@ if __name__ == "__main__":
                                     study_name=args.study_name,
                                     load_if_exists=True)
 
-    num_trials = 0
-    while num_trials < args.n_trials:
-        procs = []
-        for i in range(args.num_concurrent):
-            # for each concurrent run, sample hparams ONCE for all envs
-            num_trials += 1
-            sampled_objective = lambda trial, _env_id: objective(trial, env_id=_env_id, parallel_num=i, hparams=partial(sample_dqn_params, trial)())
-            for env_id in env_list:
-                objective_fn = lambda trial: sampled_objective(trial, env_id)
-                proc_target = lambda: study.optimize(objective_fn, n_trials=1, timeout=600)
-                p = Process(target=proc_target)
-                p.start()
-                procs.append(p)
-        for p in procs:
-            p.join()
+    # for _ in range(args.n_trials):
+    #     procs = []
+    #     # for each concurrent run, sample hparams ONCE for all envs
+    #     sampled_objective = lambda trial, _env_id: objective(trial, env_id=_env_id, hparams=partial(sample_dqn_params, trial)())
+    #     for env_id in env_list:
+    #         objective_fn = lambda trial: sampled_objective(trial, env_id)
+    #         study.optimize(objective_fn, n_trials=1, timeout=600, n_jobs=len(env_list))
+        #     proc_target = lambda: study.optimize(objective_fn, n_trials=1, timeout=600, n_jobs=len(env_list))
+        #     p = Process(target=proc_target)
+        #     p.start()
+        #     procs.append(p)
+        # for p in procs:
+        #     p.join()
+    study.optimize(objective_all, n_trials=args.n_trials, timeout=600)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
