@@ -168,6 +168,7 @@ def train(hparams, seed, env_id):
     print(env_id, seed)
     print(hparams)
 
+    input("press enter to continue")
     return 0
     experiment.seed_env(seed)
     save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed)
