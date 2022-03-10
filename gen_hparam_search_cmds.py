@@ -6,7 +6,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--study-name", type=str, required=True)
 parser.add_argument("--db-password", type=str, required=True)
 parser.add_argument("--db-name", type=str, required=True)
-parser.add_argument("--num-concurrent", type=int, default=1)
+parser.add_argument("--n-trials", type=int, default=100)
+parser.add_argument("--num-jobs", type=int, default=1,
+                    help="how many python processes to split n-trials across")
 args = parser.parse_args()
 
 
@@ -21,9 +23,9 @@ eval_envs = [
 envs_str = ','.join(eval_envs)
 
 lines = []
-lines.append(f"python -O hparam_search.py --envs {envs_str} --study-name {args.study_name} "
-             f"--db-password {args.db_password} --db-name {args.db_name} "
-             f"--num-concurrent {args.num_concurrent}\n")
+for job_i in range(args.num_jobs):
+    lines.append(f"python -O hparam_search.py --envs {envs_str} --study-name {args.study_name} "
+                 f"--db-password {args.db_password} --db-name {args.db_name} --n-trials {args.n_trials//args.num_jobs} \n")
 
 
 # Remove command file if already exists

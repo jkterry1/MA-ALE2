@@ -118,16 +118,12 @@ def train(hparams, seed, env_id):
         num_frames=args.frames,
         hparams=hparams
     )
-    print(env_id, seed)
-    print(hparams)
 
-    time.sleep(15)
-    return 0
     experiment.seed_env(seed)
     save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed)
     all_eval_returns = []
     norm_eval_returns = []
-    norm_return = None
+    norm_return, avg_norm_return = None, None
 
     if not os.path.isdir(save_folder):
         os.makedirs(save_folder)
@@ -144,20 +140,20 @@ def train(hparams, seed, env_id):
             all_eval_returns.append(mean_return)
             norm_eval_returns.append(norm_return)
         experiment._save_model()
+        avg_norm_return = np.mean(norm_eval_returns)
 
         # Handle pruning based on the intermediate value.
-        trial.report(value=norm_return, step=frame + frames_per_save)
+        trial.report(value=avg_norm_return, step=frame + frames_per_save)
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
 
-    return norm_return
+    return avg_norm_return
+
 
 def objective_all(trial):
     """Get hyperparams for trial"""
     hparams = sample_dqn_params(trial)
-    print(hparams)
 
-    # return 0
     seed = trial.number
     np.random.seed(seed)
     random.seed(seed)
@@ -166,6 +162,8 @@ def objective_all(trial):
     p = Pool(processes=len(env_list))
     norm_returns = p.map(partial(train, hparams, seed), env_list)
     p.close()
+
+    print(hparams)
     print(norm_returns)
 
     return np.mean(norm_returns)
