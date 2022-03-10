@@ -5,6 +5,7 @@ import supersuit as ss
 from pettingzoo.atari.base_atari_env import BaseAtariEnv
 from itertools import cycle
 from all.environments import MultiagentPettingZooEnv
+from all.environments import GymVectorEnvironment
 
 
 class MAPZEnvSteps(MultiagentPettingZooEnv):
@@ -53,6 +54,20 @@ def make_env(env_name, vs_builtin=False):
     env = reshape_v0(env, (1, 84, 84)) # reshaping
     return env
 
+def make_vec_env(env_name, device):
+    env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).parallel_env(obs_type='grayscale_image')
+    env = ss.max_observation_v0(env, 2) # stacking observation: (env, 2)==stacking 2 frames as observation
+    env = ss.frame_skip_v0(env, 4) # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
+    # env = InvertColorAgentIndicator(env) # handled by body
+    env = ss.resize_v0(env, 84, 84) # resizing
+    env = ss.reshape_v0(env, (1, 84, 84)) # reshaping (expand dummy channel dimension)
+    env = ss.black_death_v2(env) # Give black observation (zero array) and zero reward to dead agents
+    env = InvertColorAgentIndicator(env)
+    # env = to_parallel(env)
+    env = ss.pettingzoo_env_to_vec_env_v0(env)
+    env = ss.concat_vec_envs_v0(env, 32, num_cpus=8, base_class='stable_baselines3')
+    env = GymVectorEnvironment(env, env_name, device=device)
+    return env
 
 def recolor_surround(surround_env):
     def obs_fn(observation, obs_space):
@@ -79,7 +94,9 @@ def get_base_builtin_env(env_name):
 
 def InvertColorAgentIndicator(env):
     """
-    
+    Agent indicator for better convergence: Idea from
+    Terry, Justin K., et al. "Revisiting parameter sharing in multi-agent deep reinforcement learning." arXiv preprint arXiv:2005.13625 (2020).
+    https://arxiv.org/pdf/2005.13625.pdf
     """
     def modify_obs(obs, obs_space, agent):
         num_agents = len(env.possible_agents)
@@ -90,7 +107,9 @@ def InvertColorAgentIndicator(env):
             else:
                 rotated_obs = obs
         elif num_agents == 4:
-            rotated_obs = (255*agent_idx)//4 + obs
+            # TODO: What is the rotation means? 
+            # If it is real rotation, we should use np.rot90()
+            rotated_obs = (255*agent_idx)//4 + obs 
 
         indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
         indicator[0] = 255 * agent_idx % 2
