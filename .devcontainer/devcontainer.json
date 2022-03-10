@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
 // https://github.com/microsoft/vscode-dev-containers/tree/v0.224.2/containers/python-3-miniconda
 {
-	"name": "Miniconda (Python 3)",
+	"name": "MAALE",
 	"build": {
 		"context": "..",
 		"dockerfile": "Dockerfile",
