@@ -46,11 +46,11 @@ def make_env(env_name, vs_builtin=False):
         env = get_base_builtin_env(env_name)
     else:
         env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).env(obs_type='grayscale_image')
-    env = max_observation_v0(env, 2)
-    env = frame_skip_v0(env, 4)
+    env = max_observation_v0(env, 2) # stacking observation: (env, 2)==stacking 2 frames as observation
+    env = frame_skip_v0(env, 4) # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
     # env = InvertColorAgentIndicator(env) # handled by body
-    env = resize_v0(env, 84, 84)
-    env = reshape_v0(env, (1, 84, 84))
+    env = resize_v0(env, 84, 84) # resizing
+    env = reshape_v0(env, (1, 84, 84)) # reshaping
     return env
 
 
@@ -78,6 +78,9 @@ def get_base_builtin_env(env_name):
 
 
 def InvertColorAgentIndicator(env):
+    """
+    
+    """
     def modify_obs(obs, obs_space, agent):
         num_agents = len(env.possible_agents)
         agent_idx = env.possible_agents.index(agent)

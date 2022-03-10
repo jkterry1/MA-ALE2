@@ -18,12 +18,12 @@ from all import nn
 def make_vec_env(env_name, device):
     import importlib
     env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).parallel_env(obs_type='grayscale_image')
-    env = ss.max_observation_v0(env, 2)
-    env = ss.frame_skip_v0(env, 4)
+    env = ss.max_observation_v0(env, 2) # stacking observation: (env, 2)==stacking 2 frames as observation
+    env = ss.frame_skip_v0(env, 4) # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
     # env = InvertColorAgentIndicator(env) # handled by body
-    env = ss.resize_v0(env, 84, 84)
-    env = ss.reshape_v0(env, (1, 84, 84))
-    env = ss.black_death_v2(env)
+    env = ss.resize_v0(env, 84, 84) # resizing
+    env = ss.reshape_v0(env, (1, 84, 84)) # reshaping (expand dummy channel dimension)
+    env = ss.black_death_v2(env) # Give black observation (zero array) and zero reward to dead agents
     env = InvertColorAgentIndicator(env)
     # env = to_parallel(env)
     env = ss.pettingzoo_env_to_vec_env_v0(env)
