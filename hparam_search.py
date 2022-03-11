@@ -110,7 +110,7 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
 
 
 
-def train(hparams, seed, env_id):
+def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
     experiment, preset, env = trainer_types[args.trainer_type](
         env_id, args.device, args.replay_buffer_size,
@@ -160,7 +160,7 @@ def objective_all(trial):
     torch.manual_seed(seed)
 
     p = Pool(processes=len(env_list))
-    norm_returns = p.map(partial(train, hparams, seed), env_list)
+    norm_returns = p.map(partial(train, hparams, seed, trial), env_list)
     p.close()
 
     print(hparams)
