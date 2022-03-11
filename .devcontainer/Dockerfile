@@ -28,4 +28,5 @@ RUN conda create -y -n ale python==3.8.12
 SHELL ["/bin/bash", "-i", "-c"]
 RUN conda activate ale \
     && pip install -r requirements.txt \
-    && rm /tmp/requirements.txt
+    && rm /tmp/requirements.txt \
+    && AutoROM --accept-license
