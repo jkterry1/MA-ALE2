@@ -405,6 +405,7 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     multi_agent_test_env = MAPZEnvSteps(test_env, env_name, device=device)
 
     hparams = kwargs.get('hparams', {})
+    quiet = kwargs.get('quiet', False)
 
     preset = nfsp_rainbow_builder.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).hyperparameters(**hparams).device(device).env(
         DummyEnv(
@@ -417,6 +418,7 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
         multi_agent_env,
         logdir="runs/" + save_name('nfsp_rainbow', env_name, replay_buffer_size, kwargs['seed'], kwargs['num_frames']),
         test_env=multi_agent_test_env,
+        quiet=quiet,
     )
     return experiment, preset, multi_agent_env
 

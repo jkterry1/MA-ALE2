@@ -116,7 +116,8 @@ def train(hparams, seed, trial, env_id):
         env_id, args.device, args.replay_buffer_size,
         seed=seed,
         num_frames=args.frames,
-        hparams=hparams
+        hparams=hparams,
+        quiet=False,
     )
 
     experiment.seed_env(seed)
@@ -159,9 +160,11 @@ def objective_all(trial):
     random.seed(seed)
     torch.manual_seed(seed)
 
-    p = Pool(processes=len(env_list))
-    norm_returns = p.map(partial(train, hparams, seed, trial), env_list)
-    p.close()
+    # p = Pool(processes=len(env_list))
+    # norm_returns = p.map(partial(train, hparams, seed, None), env_list)
+    # p.close()
+    assert len(env_list) == 1
+    norm_returns = train(hparams,seed,trial,env_list[0])
 
     print(hparams)
     print(norm_returns)
