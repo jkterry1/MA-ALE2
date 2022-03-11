@@ -17,7 +17,7 @@ from all import nn
 def nat_features():
     return nature_features(16)
 
-def make_ppo_vec(env_name, device, _):
+def make_ppo_vec(env_name, device, _, **kwargs):
     venv = make_vec_env(env_name, device)
     preset = atari.ppo.env(venv).device(device).hyperparameters(
         n_envs=venv.num_envs,

@@ -102,14 +102,14 @@ def InvertColorAgentIndicator(env):
         num_agents = len(env.possible_agents)
         agent_idx = env.possible_agents.index(agent)
         if num_agents <= 2:
+            # Color flipping instead or rotation
             if agent_idx == 1:
                 rotated_obs = 255 - obs
             else:
                 rotated_obs = obs
         elif num_agents == 4:
-            # TODO: What is the rotation means? 
-            # If it is real rotation, we should use np.rot90()
-            rotated_obs = ((255*agent_idx)//4 + obs )%255
+            # Color rotation
+            rotated_obs = ((255*agent_idx)//4 + obs) % 255
 
         indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
         indicator[0] = 255 * agent_idx % 2
