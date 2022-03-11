@@ -21,7 +21,7 @@ RUN if [ -f "/tmp/conda-tmp/environment.yml" ]; then umask 0002 && /opt/conda/bi
 # RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 #     && apt-get -y install --no-install-recommends mysql-client
 
-RUN sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev libgl1-mesa-glx
+RUN sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev libgl1-mesa-glx tmux
 COPY requirements.txt /tmp/requirements.txt
 WORKDIR /tmp
 RUN conda create -y -n ale python==3.8.12
