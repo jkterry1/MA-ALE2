@@ -10,18 +10,16 @@ import random
 from experiment_train import trainer_types
 import optuna
 from optuna.trial import TrialState
-from functools import partial
 import time
-from multiprocessing import Pool
+import ray
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
 
-parser.add_argument("--device", default="cuda",
-                    help="The name of the device to run the agent on (e.g. cpu, cuda, cuda:0).")
-parser.add_argument("--replay_buffer_size", default=1000000, type=int,
-                    help="The size of the replay buffer, if applicable")
+parser.add_argument("--num-gpus", type=int, default=1,
+                    help="number of GPUs for this search process")
 parser.add_argument("--frames", type=int, default=50e6, help="The number of training frames.")
+parser.add_argument("--frames-per-save", type=int, default=None)
 parser.add_argument("--trainer-type", type=str, default="nfsp_rainbow")
 parser.add_argument("--num-eval-episodes", type=int, default=20,
                     help="how many evaluation episodes to run per training epoch")
@@ -37,6 +35,7 @@ parser.add_argument("--db-password", type=str)
 parser.add_argument("--n-trials", type=int, default=100,
                     help="number of trials for EACH environment, or how many times hparams are sampled.")
 args = parser.parse_args()
+args.device = 'cuda' if args.num_gpus > 0 else 'cpu'
 
 
 
@@ -109,11 +108,11 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     return (score - builtin_score) / (rand_score - builtin_score)
 
 
-
+@ray.remote(num_gpus=args.num_gpus)
 def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
     experiment, preset, env = trainer_types[args.trainer_type](
-        env_id, args.device, args.replay_buffer_size,
+        env_id, args.device, hparams['replay_buffer_size'],
         seed=seed,
         num_frames=args.frames,
         hparams=hparams,
@@ -121,7 +120,7 @@ def train(hparams, seed, trial, env_id):
     )
 
     experiment.seed_env(seed)
-    save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, args.replay_buffer_size, args.frames, seed)
+    save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, hparams['replay_buffer_size'], args.frames, seed)
     all_eval_returns = []
     norm_eval_returns = []
     norm_return, avg_norm_return = None, None
@@ -129,7 +128,7 @@ def train(hparams, seed, trial, env_id):
     if not os.path.isdir(save_folder):
         os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = max(num_frames_train // 100, 1)
+    frames_per_save = args.frames_per_save or max(num_frames_train // 100, 1)
     for frame in range(0, num_frames_train, frames_per_save):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
@@ -160,11 +159,8 @@ def objective_all(trial):
     random.seed(seed)
     torch.manual_seed(seed)
 
-    # p = Pool(processes=len(env_list))
-    # norm_returns = p.map(partial(train, hparams, seed, None), env_list)
-    # p.close()
-    assert len(env_list) == 1
-    norm_returns = train(hparams,seed,trial,env_list[0])
+    futures = [train.remote(hparams, seed, trial, env_id) for env_id in env_list]
+    norm_returns = ray.get(futures)
 
     print(hparams)
     print(norm_returns)
@@ -174,10 +170,16 @@ def objective_all(trial):
 
 if __name__ == "__main__":
     if args.local:
+        ray.init(num_gpus=args.num_gpus, local_mode=True)
+        time.sleep(10)
         study = optuna.create_study(direction="maximize",
                                     study_name=args.study_name,
                                     load_if_exists=True)
     else:
+        import pathlib
+        temp_dir = pathlib.Path(__file__).parent.resolve().joinpath("raytmp")
+        ray.init(num_gpus=args.num_gpus, local_mode=False, _temp_dir=str(temp_dir))
+        time.sleep(10)
         study = optuna.create_study(direction="maximize",
                                     storage=SQL_ADDRESS,
                                     study_name=args.study_name,
