@@ -5,6 +5,7 @@ import supersuit as ss
 from pettingzoo.atari.base_atari_env import BaseAtariEnv
 from itertools import cycle
 from all.environments import MultiagentPettingZooEnv
+from all.environments import GymVectorEnvironment
 
 
 class MAPZEnvSteps(MultiagentPettingZooEnv):
@@ -17,7 +18,6 @@ class MAPZEnvSteps(MultiagentPettingZooEnv):
         MultiagentPettingZooEnv.__init__(self, zoo_env, name, device=device)
         # self._episodes_seen = -1 # incremented on reset(), start at -1
         self._ep_steps = None
-
 
     def _add_env_steps(self, state):
         cur_agent = state['agent']
@@ -54,6 +54,20 @@ def make_env(env_name, vs_builtin=False):
     return env
 
 
+def make_vec_env(n_env, env_name, num_cpus, device):
+    env = importlib.import_module(f'pettingzoo.atari.{env_name}').parallel_env(
+        obs_type='grayscale_image')
+    env = ss.max_observation_v0(env, 2)
+    env = ss.frame_skip_v0(env, 4)
+    env = ss.resize_v0(env, 84, 84)
+    env = ss.reshape_v0(env, (1, 84, 84))
+    env = ss.pettingzoo_env_to_vec_env_v1(env)
+    env = ss.concat_vec_envs_v1(env, n_env, num_cpus=num_cpus,
+                                base_class='stable_baselines3')
+    env = GymVectorEnvironment(env, env_name, device=device)
+    return env
+
+
 def recolor_surround(surround_env):
     def obs_fn(observation, obs_space):
         new_obs = np.copy(observation)
@@ -71,7 +85,8 @@ def recolor_surround(surround_env):
 
 def get_base_builtin_env(env_name):
     name_no_version = env_name.rsplit("_", 1)[0]
-    env = BaseAtariEnv(game=name_no_version, num_players=1, obs_type='grayscale_image')
+    env = BaseAtariEnv(game=name_no_version, num_players=1,
+                       obs_type='grayscale_image')
     if name_no_version == "surround":
         env = recolor_surround(env)
     return env
@@ -89,7 +104,7 @@ def InvertColorAgentIndicator(env):
         elif num_agents == 4:
             rotated_obs = (255*agent_idx)//4 + obs
 
-        indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
+        indicator = np.zeros((2, )+obs.shape[1:], dtype="uint8")
         indicator[0] = 255 * agent_idx % 2
         indicator[1] = 255 * ((agent_idx+1) // 2) % 2
         return np.concatenate([obs, rotated_obs, indicator], axis=0)
