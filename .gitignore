@@ -7,3 +7,5 @@ events.out.tfcache*
 .idea/
 runs/
 checkpoint/
+.devcontainer/
+.vscode/
