@@ -51,7 +51,6 @@ def make_env(env_name, vs_builtin=False):
     env = ss.frame_skip_v0(env, 4) # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
     env = ss.resize_v0(env, 84, 84) # resizing
     env = ss.reshape_v0(env, (1, 84, 84)) # reshaping
-    env = ss.black_death_v2(env) # Give black observation (zero array) and zero reward to dead agents
     env = InvertColorAgentIndicator(env) # Observation indicator for each agent
 
     return env
@@ -62,7 +61,6 @@ def make_vec_env(env_name, device):
     env = ss.frame_skip_v0(env, 4) # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
     env = ss.resize_v0(env, 84, 84) # resizing
     env = ss.reshape_v0(env, (1, 84, 84)) # reshaping (expand dummy channel dimension)
-    env = ss.black_death_v2(env) # Give black observation (zero array) and zero reward to dead agents
     env = InvertColorAgentIndicator(env)
     # env = to_parallel(env)
     env = ss.pettingzoo_env_to_vec_env_v0(env)
