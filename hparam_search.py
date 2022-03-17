@@ -138,7 +138,7 @@ def train(hparams, seed, trial, env_id):
         if len(os.listdir(save_folder)) != 0:
             frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
             preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
-            print("Loaded")
+            
 
     for frame in range(frame_start, num_frames_train, frames_per_save):
         experiment.train(frames=frame)
@@ -157,6 +157,20 @@ def train(hparams, seed, trial, env_id):
         trial.report(value=avg_norm_return, step=frame + frames_per_save)
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
+
+    # if ckpt is already fully existed
+    if frame_start >= num_frames_train:
+        eval_returns = experiment.test(episodes=args.num_eval_episodes)
+        for aid, returns in eval_returns.items():
+            mean_return = np.mean(returns)
+            norm_return = normalize_score(mean_return, env_id=env_id)
+            all_eval_returns.append(mean_return)
+            norm_eval_returns.append(norm_return)
+        experiment._save_model()
+        avg_norm_return = np.mean(norm_eval_returns)
+
+        # Handle pruning based on the intermediate value.
+        trial.report(value=avg_norm_return, step=frame + frames_per_save)
 
     return avg_norm_return
 
@@ -190,6 +204,16 @@ if __name__ == "__main__":
                                     storage=SQL_ADDRESS,
                                     study_name=args.study_name,
                                     load_if_exists=True)
+        if args.from_ckpt:
+            trials = study.trials
+            optuna.delete_study(storage=SQL_ADDRESS,
+                                study_name=args.study_name)
+            study = optuna.create_study(direction="maximize",
+                                        storage=SQL_ADDRESS,
+                                        study_name=args.study_name,
+                                        load_if_exists=False)
+            for trial in trials[:-1]:
+                study.add_trial(trial)
         
 
     study.optimize(objective_all, n_trials=args.n_trials-len(study.trials), timeout=600)
