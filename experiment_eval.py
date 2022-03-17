@@ -13,7 +13,7 @@ from all.agents.independent import IndependentMultiagent
 from algorithms.shared_rainbow import make_rainbow_preset
 from algorithms.independent_rainbow import make_indepedent_rainbow
 # from ppo_ram import make_ppo_ram_vec
-from algorithms.shared_ppo import make_ppo_vec
+from algorithms.shared_ppo import make_ppo_vec, make_ppo_vec_largenet
 from algorithms.nfsp import make_nfsp_rainbow
 
 trainer_types = {
@@ -21,6 +21,7 @@ trainer_types = {
     "independent_rainbow": make_indepedent_rainbow,
     "shared_ppo": make_ppo_vec,
     # "shared_ppo_ram": make_ppo_ram_vec,
+    "shared_ppo_largenet": make_ppo_vec_largenet,
     "nfsp_rainbow": make_nfsp_rainbow,
 }
 

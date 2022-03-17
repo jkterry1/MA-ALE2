@@ -6,7 +6,7 @@ from all.logging import DummyWriter
 from all.presets import IndependentMultiagentPreset, Preset
 from all.core import State
 import torch
-from env_utils import make_env
+from env_utils import make_env, make_vec_env
 import supersuit as ss
 from models import impala_features, impala_value_head, impala_policy_head, nature_features
 from env_utils import InvertColorAgentIndicator, make_vec_env

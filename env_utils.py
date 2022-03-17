@@ -45,11 +45,12 @@ def make_env(env_name, vs_builtin=False, device='cuda'):
         env = get_base_builtin_env(env_name)
     else:
         env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).env(obs_type='grayscale_image')
-    env = max_observation_v0(env, 2)
-    env = frame_skip_v0(env, 4)
-    env = resize_v0(env, 84, 84)
-    env = reshape_v0(env, (1, 84, 84))
-    # env = InvertColorAgentIndicator(env) # FIXME: this breaks nfsp rainbow for some reason?
+    env = ss.max_observation_v0(env, 2)  # sequential observation: (env, 2)== maximum 2 frames can be observation and then skip
+    env = ss.frame_skip_v0(env, 4)  # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
+    env = ss.resize_v0(env, 84, 84)  # resizing
+    env = ss.reshape_v0(env, (1, 84, 84))  # reshaping
+    # FIXME: this breaks nfsp rainbow for some reason?
+    # env = InvertColorAgentIndicator(env)  # Observation indicator for each agent
     return env
 
 def make_vec_env(env_name, device, vs_builtin=False):
@@ -57,10 +58,10 @@ def make_vec_env(env_name, device, vs_builtin=False):
         env = get_base_builtin_env(env_name, parallel=True)
     else:
         env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).parallel_env(obs_type='grayscale_image')
-    env = ss.max_observation_v0(env, 2)
-    env = ss.frame_skip_v0(env, 4)
-    env = ss.resize_v0(env, 84, 84)
-    env = ss.reshape_v0(env, (1, 84, 84))
+    env = ss.max_observation_v0(env, 2) # stacking observation: (env, 2)==stacking 2 frames as observation
+    env = ss.frame_skip_v0(env, 4) # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
+    env = ss.resize_v0(env, 84, 84) # resizing
+    env = ss.reshape_v0(env, (1, 84, 84)) # reshaping (expand dummy channel dimension)
     env = InvertColorAgentIndicator(env)
     env = ss.pettingzoo_env_to_vec_env_v1(env)
     env = ss.concat_vec_envs_v1(env, 32, num_cpus=8, base_class='stable_baselines3')
@@ -95,20 +96,28 @@ def get_base_builtin_env(env_name, parallel=False):
 
 
 def InvertColorAgentIndicator(env):
+    """
+    Agent indicator for better convergence: Idea from
+    Terry, Justin K., et al. "Revisiting parameter sharing in multi-agent deep reinforcement learning." arXiv preprint arXiv:2005.13625 (2020).
+    https://arxiv.org/pdf/2005.13625.pdf
+    """
     def modify_obs(obs, obs_space, agent):
         num_agents = len(env.possible_agents)
         agent_idx = env.possible_agents.index(agent)
         if num_agents <= 2:
+            # Color flipping instead or rotation
             if agent_idx == 1:
                 rotated_obs = 255 - obs
             else:
                 rotated_obs = obs
+            indicator = np.zeros((1, )+obs.shape[1:],dtype="uint8")
+            indicator[0] = 255 * agent_idx
         elif num_agents == 4:
-            rotated_obs = (255*agent_idx)//4 + obs
-
-        indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
-        indicator[0] = 255 * agent_idx % 2
-        indicator[1] = 255 * ((agent_idx+1) // 2) % 2
+            # Color rotation
+            rotated_obs = ((255*agent_idx)//4 + obs) % 255
+            indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
+            indicator[0] = 255 * (agent_idx % 2)
+            indicator[1] = 255 * (((agent_idx+1) // 2) % 2)
         return np.concatenate([obs, rotated_obs, indicator], axis=0)
     env = ss.observation_lambda_v0(env, modify_obs)
     env = ss.pad_observations_v0(env)
