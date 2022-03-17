@@ -47,7 +47,7 @@ def main(return_eval=False):
         "--experiment-seed", type=int, default=int(time.time()),
         help="The unique id of the experiment run (for running multiple experiments)."
     )
-
+    parser.add_argument("--frames-per-save", type=int, default=None)
     args = parser.parse_args()
 
     np.random.seed(args.experiment_seed)
@@ -63,7 +63,7 @@ def main(return_eval=False):
                                             args.frames, args.experiment_seed)
     os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = num_frames_train//100
+    frames_per_save = args.frames_per_save or num_frames_train//100
     for frame in range(0,num_frames_train,frames_per_save):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame+frames_per_save:09d}.pt")

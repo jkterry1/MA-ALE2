@@ -1,13 +1,10 @@
-import numpy as np
-import torch
-# torch.set_num_threads(1)
-
-
 from all.core import State, StateArray
 from all.bodies._body import Body
 import torch
-import os
 from all.bodies.vision import LazyState, TensorDeviceCache
+
+def save_name(trainer_type: str, env: str, replay_size: int, num_frames: int, seed: float):
+    return f"{trainer_type}/{env}/RB{replay_size}_F{num_frames}/S{seed}"
 
 class IndicatorState(State):
     @classmethod

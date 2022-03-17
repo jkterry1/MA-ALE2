@@ -7,3 +7,4 @@ dill
 multi_agent_ale_py
 mysqlclient
 autorom
+ray==1.10.0

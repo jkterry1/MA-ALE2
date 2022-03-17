@@ -2,9 +2,9 @@ import importlib
 import numpy as np
 from supersuit import resize_v0, frame_skip_v0, reshape_v0, max_observation_v0
 import supersuit as ss
-from pettingzoo.atari.base_atari_env import BaseAtariEnv
+from pettingzoo.atari.base_atari_env import BaseAtariEnv, ParallelAtariEnv
 from itertools import cycle
-from all.environments import MultiagentPettingZooEnv
+from all.environments import MultiagentPettingZooEnv, GymVectorEnvironment
 
 
 class MAPZEnvSteps(MultiagentPettingZooEnv):
@@ -15,7 +15,6 @@ class MAPZEnvSteps(MultiagentPettingZooEnv):
     """
     def __init__(self, zoo_env, name, device='cuda'):
         MultiagentPettingZooEnv.__init__(self, zoo_env, name, device=device)
-        # self._episodes_seen = -1 # incremented on reset(), start at -1
         self._ep_steps = None
 
 
@@ -41,16 +40,31 @@ class MAPZEnvSteps(MultiagentPettingZooEnv):
         return self._add_env_steps(state)
 
 
-def make_env(env_name, vs_builtin=False):
+def make_env(env_name, vs_builtin=False, device='cuda'):
     if vs_builtin:
         env = get_base_builtin_env(env_name)
     else:
         env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).env(obs_type='grayscale_image')
     env = max_observation_v0(env, 2)
     env = frame_skip_v0(env, 4)
-    # env = InvertColorAgentIndicator(env) # handled by body
     env = resize_v0(env, 84, 84)
     env = reshape_v0(env, (1, 84, 84))
+    # env = InvertColorAgentIndicator(env) # FIXME: this breaks nfsp rainbow for some reason?
+    return env
+
+def make_vec_env(env_name, device, vs_builtin=False):
+    if vs_builtin:
+        env = get_base_builtin_env(env_name, parallel=True)
+    else:
+        env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).parallel_env(obs_type='grayscale_image')
+    env = ss.max_observation_v0(env, 2)
+    env = ss.frame_skip_v0(env, 4)
+    env = ss.resize_v0(env, 84, 84)
+    env = ss.reshape_v0(env, (1, 84, 84))
+    env = InvertColorAgentIndicator(env)
+    env = ss.pettingzoo_env_to_vec_env_v1(env)
+    env = ss.concat_vec_envs_v1(env, 32, num_cpus=8, base_class='stable_baselines3')
+    env = GymVectorEnvironment(env, env_name, device=device)
     return env
 
 
@@ -69,9 +83,12 @@ def recolor_surround(surround_env):
     return ss.observation_lambda_v0(surround_env, obs_fn)
 
 
-def get_base_builtin_env(env_name):
+def get_base_builtin_env(env_name, parallel=False):
     name_no_version = env_name.rsplit("_", 1)[0]
-    env = BaseAtariEnv(game=name_no_version, num_players=1, obs_type='grayscale_image')
+    if parallel:
+        env = ParallelAtariEnv(game=name_no_version, num_players=1, obs_type='grayscale_image')
+    else:
+        env = BaseAtariEnv(game=name_no_version, num_players=1, obs_type='grayscale_image')
     if name_no_version == "surround":
         env = recolor_surround(env)
     return env

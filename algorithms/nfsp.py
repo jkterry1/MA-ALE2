@@ -39,8 +39,7 @@ from all.presets.atari.models import nature_rainbow, nature_features, nature_pol
 from all.presets.preset import Preset
 from all.presets import PresetBuilder
 from all.agents.independent import IndependentMultiagent
-from shared_utils import DummyEnv, IndicatorBody, IndicatorState
-from all.environments import MultiagentPettingZooEnv
+from shared_utils import DummyEnv, IndicatorBody, save_name
 from all.experiments.multiagent_env_experiment import MultiagentEnvExperiment
 from all.approximation import Approximation
 from env_utils import make_env
@@ -81,9 +80,6 @@ default_hyperparameters = {
     # Model construction
     "model_constructor": nature_rainbow,
 }
-
-def save_name(trainer_type: str, env: str, replay_size: int, num_frames: int, seed: float):
-    return f"{trainer_type}/{env}/RB{replay_size}_F{num_frames}/S{seed}"
 
 
 
@@ -392,8 +388,8 @@ from env_utils import MAPZEnvSteps
 nfsp_rainbow_builder = PresetBuilder('nfsp_rainbow', default_hyperparameters, NFSPRainbowPreset)
 
 def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
-    env = make_env(env_name)
-    test_env = make_env(env_name, vs_builtin=True)
+    env = make_env(env_name, device=device, vs_builtin=False)
+    test_env = make_env(env_name, device=device, vs_builtin=True)
     agent0 = env.possible_agents[0]
     obs_space = env.observation_spaces[agent0]
     act_space = env.action_spaces[agent0]
@@ -407,7 +403,7 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
     hparams = kwargs.get('hparams', {})
     quiet = kwargs.get('quiet', False)
 
-    preset = nfsp_rainbow_builder.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).hyperparameters(**hparams).device(device).env(
+    preset = nfsp_rainbow_builder.env(multi_agent_env).hyperparameters(**hparams).device(device).env(
         DummyEnv(
             obs_space, act_space, env_agents
         )

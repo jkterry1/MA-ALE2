@@ -11,8 +11,8 @@ from all.presets.atari.models import nature_rainbow
 from all.presets.preset import Preset
 from all.presets import PresetBuilder
 from all.agents.independent import IndependentMultiagent
-from shared_utils import DummyEnv, IndicatorBody, IndicatorState
-from env_utils import make_env
+from shared_utils import DummyEnv, IndicatorBody, IndicatorState, save_name
+from env_utils import make_env, make_vec_env
 import argparse
 from all.environments import MultiagentPettingZooEnv
 from all.experiments.multiagent_env_experiment import MultiagentEnvExperiment
@@ -88,13 +88,12 @@ class RainbowAtariPreset(Preset):
 
     def __init__(self, env, name, device="cuda", **hyperparameters):
         hyperparameters = {**default_hyperparameters, **hyperparameters}
-        super().__init__(env, name, hyperparameters)
-        self.model = hyperparameters['model_constructor'](env, frames=10, atoms=hyperparameters["atoms"], sigma=hyperparameters["sigma"]).to(device)
-        self.hyperparameters = hyperparameters
+        super(RainbowAtariPreset, self).__init__(name=name, device=device, hyperparameters=hyperparameters)
         self.n_actions = env.action_space.n
-        self.device = device
-        self.name = name
         self.agent_names = env.agents
+        self.env = env
+        self.model = hyperparameters['model_constructor'](env, frames=10, atoms=hyperparameters["atoms"],
+                                                          sigma=hyperparameters["sigma"]).to(device)
 
     def agent(self, writer=DummyWriter(), train_steps=float('inf')):
         n_updates = (train_steps - self.hyperparameters['replay_start_size']) / self.hyperparameters['update_frequency']
@@ -192,7 +191,8 @@ def nat_features(env, frames=4, **kwargs):
 
 
 def make_rainbow_preset(env_name, device, replay_buffer_size, **kwargs):
-    env = make_env(env_name)
+    env = make_env(env_name, device=device, vs_builtin=False)
+    test_env = make_env(env_name, device=device, vs_builtin=True)
     agent0 = env.possible_agents[0]
     obs_space = env.observation_spaces[agent0]
     act_space = env.action_spaces[agent0]
@@ -201,7 +201,12 @@ def make_rainbow_preset(env_name, device, replay_buffer_size, **kwargs):
         assert act_space == env.action_spaces[agent]
     env_agents = env.possible_agents
     multi_agent_env = MultiagentPettingZooEnv(env, env_name, device=device)
-    preset = rainbow.env(multi_agent_env).hyperparameters(replay_buffer_size=replay_buffer_size).device(device).env(
+    multi_agent_test_env = MultiagentPettingZooEnv(test_env, env_name, device=device)
+
+    hparams = kwargs.get('hparams', {})
+    quiet = kwargs.get('quiet', False)
+
+    preset = rainbow.env(multi_agent_env).hyperparameters(**hparams).device(device).env(
         DummyEnv(
             obs_space, act_space, env_agents
         )
@@ -210,6 +215,8 @@ def make_rainbow_preset(env_name, device, replay_buffer_size, **kwargs):
     experiment = MultiagentEnvExperiment(
         preset,
         multi_agent_env,
-        write_loss=False,
+        logdir="runs/" + save_name('nfsp_rainbow', env_name, replay_buffer_size, kwargs['seed'], kwargs['num_frames']),
+        test_env=multi_agent_test_env,
+        quiet=quiet,
     )
     return experiment, preset, multi_agent_env
