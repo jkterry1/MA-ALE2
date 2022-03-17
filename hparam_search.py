@@ -36,6 +36,8 @@ parser.add_argument("--db-name", type=str, default="maale",
 parser.add_argument("--db-password", type=str)
 parser.add_argument("--n-trials", type=int, default=100,
                     help="number of trials for EACH environment, or how many times hparams are sampled.")
+parser.add_argument("--from-ckpt", action="store_true", 
+                    help="learning start from previous trained checkpoints")
 args = parser.parse_args()
 
 
@@ -129,7 +131,16 @@ def train(hparams, seed, trial, env_id):
         os.makedirs(save_folder)
     num_frames_train = int(args.frames)
     frames_per_save = max(num_frames_train // 100, 1)
-    for frame in range(0, num_frames_train, frames_per_save):
+
+    # Start from the last preset
+    frame_start = 0
+    if args.from_ckpt:
+        if len(os.listdir(save_folder)) != 0:
+            frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
+            preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
+            print("Loaded")
+
+    for frame in range(frame_start, num_frames_train, frames_per_save):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
 
@@ -179,8 +190,9 @@ if __name__ == "__main__":
                                     storage=SQL_ADDRESS,
                                     study_name=args.study_name,
                                     load_if_exists=True)
+        
 
-    study.optimize(objective_all, n_trials=args.n_trials, timeout=600)
+    study.optimize(objective_all, n_trials=args.n_trials-len(study.trials), timeout=600)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
