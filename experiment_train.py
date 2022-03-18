@@ -4,7 +4,9 @@ import torch
 from algorithms.shared_rainbow import make_rainbow_preset
 from algorithms.independent_rainbow import make_indepedent_rainbow
 from algorithms.shared_ppo import make_ppo_vec, make_ppo_vec_largenet
-from algorithms.nfsp import make_nfsp_rainbow, save_name
+from algorithms.nfsp import make_nfsp_rainbow
+from algorithms.parallel_rainbow import make_parallel_rainbow
+from shared_utils import save_name
 import numpy as np
 import time
 import random
@@ -21,6 +23,7 @@ trainer_types = {
     # "shared_ppo_ram": make_ppo_ram_vec,
     "shared_ppo_largenet": make_ppo_vec_largenet,
     "nfsp_rainbow": make_nfsp_rainbow,
+    "parallel_rainbow": make_parallel_rainbow,
 }
 
 

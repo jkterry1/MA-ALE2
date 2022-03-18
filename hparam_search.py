@@ -219,7 +219,7 @@ def train(hparams, seed, trial, env_id):
 
     return avg_norm_return
 
-if args.trainer_type == "shared_rainbow":
+if args.trainer_type in ["shared_rainbow", "parallel_rainbow"]:
     sampler_fn = sample_rainbow_params
 elif args.trainer_type == "nfsp_rainbow":
     sampler_fn = sample_nfsp_rainbow_params

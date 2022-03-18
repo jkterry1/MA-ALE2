@@ -53,7 +53,7 @@ def make_env(env_name, vs_builtin=False, device='cuda'):
     # env = InvertColorAgentIndicator(env)  # Observation indicator for each agent
     return env
 
-def make_vec_env(env_name, device, vs_builtin=False):
+def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
     if vs_builtin:
         env = get_base_builtin_env(env_name, parallel=True)
     else:
@@ -64,7 +64,7 @@ def make_vec_env(env_name, device, vs_builtin=False):
     env = ss.reshape_v0(env, (1, 84, 84)) # reshaping (expand dummy channel dimension)
     env = InvertColorAgentIndicator(env)
     env = ss.pettingzoo_env_to_vec_env_v1(env)
-    env = ss.concat_vec_envs_v1(env, 32, num_cpus=8, base_class='stable_baselines3')
+    env = ss.concat_vec_envs_v1(env, num_envs, num_cpus=num_envs//4, base_class='stable_baselines3')
     env = GymVectorEnvironment(env, env_name, device=device)
     return env
 
