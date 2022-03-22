@@ -8,7 +8,7 @@ from all.bodies import DeepmindAtariBody
 from all.logging import DummyWriter
 from all.optim import LinearScheduler
 from all.presets.atari.models import nature_rainbow
-from all.presets import PresetBuilder
+from all.presets import ParallelPresetBuilder
 from all.presets import ParallelPreset
 from all.memory import ExperienceReplayBuffer
 from all.agents._parallel_agent import ParallelAgent
@@ -247,7 +247,7 @@ class ParallelRainbowPreset(ParallelPreset):
         return self.test_agent()
 
 
-parallel_rainbow = PresetBuilder('parallel_rainbow', default_hyperparameters, ParallelRainbowPreset)
+parallel_rainbow = ParallelPresetBuilder('parallel_rainbow', default_hyperparameters, ParallelRainbowPreset)
 
 def make_parallel_rainbow(env_name, device, replay_buffer_size, **kwargs):
     n_envs = 16
