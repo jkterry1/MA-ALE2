@@ -228,8 +228,6 @@ class ParallelRainbowPreset(ParallelPreset):
                 update_frequency=self.hyperparameters["update_frequency"],
                 writer=writer
             ),
-            lazy_frames=True,
-            episodic_lives=True
         )
 
     def test_agent(self):
