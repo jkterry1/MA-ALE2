@@ -23,8 +23,6 @@ trainer_types = {
     "nfsp_rainbow": make_nfsp_rainbow,
 }
 
-
-
 def main(return_eval=False):
     parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
     parser.add_argument("env", help="Name of the Atari game (e.g. Pong).")
