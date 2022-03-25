@@ -9,16 +9,18 @@ import torch
 from env_utils import make_env, make_vec_env
 import supersuit as ss
 from models import impala_features, impala_value_head, impala_policy_head, nature_features
-from env_utils import InvertColorAgentIndicator
+from env_utils import InvertColorAgentIndicator, make_vec_env
 from all.bodies import DeepmindAtariBody
 from models import ImpalaCNNLarge
 from all import nn
 
+
 def nat_features():
     return nature_features(16)
 
+
 def make_ppo_vec(env_name, device, _, **kwargs):
-    venv = make_vec_env(env_name, device)
+    venv = make_vec_env(env_name, device=device, vs_builtin=False)
     preset = atari.ppo.env(venv).device(device).hyperparameters(
         n_envs=venv.num_envs,
         n_steps=32,
@@ -32,9 +34,6 @@ def make_ppo_vec(env_name, device, _, **kwargs):
         clip_initial=0.5,
         clip_final=0.05,
     ).build()
-    # base_agent = preset.agent.agent.agent
-    # preset = DeepmindAtariBody(base_agent, lazy_frames=True, episodic_lives=False, clip_rewards=True,)
-    # print(base_agent)
 
     experiment = ParallelEnvExperiment(preset, venv)
     return experiment, preset, venv
