@@ -21,19 +21,22 @@ def nat_features():
 
 def make_ppo_vec(env_name, device, _, **kwargs):
     venv = make_vec_env(env_name, device=device, vs_builtin=False)
-    preset = atari.ppo.env(venv).device(device).hyperparameters(
-        n_envs=venv.num_envs,
-        n_steps=32,
-        minibatches=8,
-        epochs=4,
-        feature_model_constructor=nat_features,
-        # value_model_constructor=impala_value_head,
-        # policy_model_constructor=impala_policy_head,
-        entropy_loss_scaling=0.001,
-        value_loss_scaling=0.1,
-        clip_initial=0.5,
-        clip_final=0.05,
-    ).build()
+
+    hparams = kwargs.get('hparams', {})
+    preset = atari.ppo.env(venv).device(device).hyperparameters(n_envs=venv.num_envs, **hparams).build()
+    # preset = atari.ppo.env(venv).device(device).hyperparameters(
+    #     n_envs=venv.num_envs,
+    #     n_steps=32,
+    #     minibatches=8,
+    #     epochs=4,
+    #     feature_model_constructor=nat_features,
+    #     # value_model_constructor=impala_value_head,
+    #     # policy_model_constructor=impala_policy_head,
+    #     entropy_loss_scaling=0.001,
+    #     value_loss_scaling=0.1,
+    #     clip_initial=0.5,
+    #     clip_final=0.05,
+    # ).build()
 
     experiment = ParallelEnvExperiment(preset, venv)
     return experiment, preset, venv

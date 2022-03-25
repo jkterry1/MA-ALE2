@@ -107,27 +107,25 @@ def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
     """Sampler for PPO hyperparams."""
     n_steps = trial.suggest_categorical("n_steps", [8, 16, 32, 64, 128, 256, 512, 1024, 2048])
     ent_coef = trial.suggest_loguniform("ent_coef", 0.00000001, 0.1)
-    batch_size = trial.suggest_categorical("batch_size", [8, 16, 32, 64, 128, 256, 512])
+    minibatches = trial.suggest_categorical("minibatches", [1, 4, 8, 16, 32])
     n_epochs = trial.suggest_categorical("n_epochs", [1, 5, 10, 20])
     gae_lambda = trial.suggest_categorical("gae_lambda", [0.8, 0.9, 0.92, 0.95, 0.98, 0.99, 1.0])
     value_loss_scaling = trial.suggest_uniform("value_loss_scaling", 0, 1)
 
-    clip_range = trial.suggest_categorical("clip_range", [0.1, 0.2, 0.3, 0.4])
-    max_grad_norm = trial.suggest_categorical("max_grad_norm", [0.3, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 5])
-
-    # TODO: account when using multiple envs
-    if batch_size > n_steps:
-        batch_size = n_steps
+    clip_final = trial.suggest_loguniform("clip_final", 0.0001, 0.1)
+    clip_initial = trial.suggest_loguniform("clip_initial", 0.01, 0.5)
+    max_grad_norm = trial.suggest_float("max_grad_norm", 0.1, 5)
 
     hyperparams = sample_common_params(trial)
     hyperparams.update({
         "n_steps": n_steps,
-        "minibatch_size": batch_size,
+        "minibatches": minibatches,
         "entropy_loss_scaling": ent_coef,
-        "clip_range": clip_range,
+        "clip_initial": clip_initial,
+        "clip_final": clip_final,
         "epochs": n_epochs,
         "lam": gae_lambda,
-        "max_grad_norm": max_grad_norm,
+        "clip_grad": max_grad_norm,
         "value_loss_scaling": value_loss_scaling,
     })
     return hyperparams
@@ -151,7 +149,7 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
 @ray.remote(num_gpus=args.num_gpus)
 def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
-    buffer_size = hparams.get('replay_buffer_size', 0)
+    buffer_size = hparams.get('replay_buffer_size', None)
     experiment, preset, env = trainer_types[args.trainer_type](
         env_id, args.device, buffer_size,
         seed=seed,

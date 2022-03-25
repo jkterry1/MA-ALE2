@@ -58,14 +58,15 @@ def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
         env = get_base_builtin_env(env_name, parallel=True)
     else:
         env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).parallel_env(obs_type='grayscale_image')
-    env = ss.max_observation_v0(env, 2) # stacking observation: (env, 2)==stacking 2 frames as observation
-    env = ss.frame_skip_v0(env, 4) # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
-    env = ss.resize_v0(env, 84, 84) # resizing
-    env = ss.reshape_v0(env, (1, 84, 84)) # reshaping (expand dummy channel dimension)
-    env = InvertColorAgentIndicator(env)
-    env = ss.pettingzoo_env_to_vec_env_v1(env)
-    env = ss.concat_vec_envs_v1(env, num_envs, num_cpus=num_envs//4, base_class='stable_baselines3')
-    env = GymVectorEnvironment(env, env_name, device=device)
+    env = ss.max_observation_v0(env, 2)     # stacking observation: (env, 2)==stacking 2 frames as observation
+    env = ss.frame_skip_v0(env, 4)          # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
+    env = ss.resize_v0(env, 84, 84)         # resizing
+    env = ss.reshape_v0(env, (1, 84, 84))   # reshaping (expand dummy channel dimension)
+    env = InvertColorAgentIndicator(env)    # reshapes to (3, 84, 84)
+    env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 3, 84, 84)
+    env = ss.concat_vec_envs_v1(env, num_envs, # -> (n_envs*n_agents, 3, 84, 84)
+                                num_cpus=num_envs//4, base_class='stable_baselines3')
+    env = GymVectorEnvironment(env, env_name, device=device) # -> (n_envs*n_agents,) shape StateArray
     return env
 
 

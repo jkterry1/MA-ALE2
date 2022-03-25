@@ -10,7 +10,7 @@ from all.optim import LinearScheduler
 from all.presets.atari.models import nature_rainbow
 from all.presets import ParallelPresetBuilder
 from all.presets import ParallelPreset
-from all.memory import ExperienceReplayBuffer
+from all.memory import ExperienceReplayBuffer, PrioritizedReplayBuffer, NStepReplayBuffer, NStepAdvantageBuffer
 from all.agents._parallel_agent import ParallelAgent
 from all.experiments import ParallelEnvExperiment
 from env_utils import make_vec_env
@@ -100,12 +100,29 @@ class ParallelRainbow(ParallelAgent):
         self._action = None
         self._frames_seen = 0
 
-    def act(self, state):
-        self.replay_buffer.store(self._state, self._action, state)
+    # TODO: these Rainbow features are not present
+    # It uses Double Q-Learning to tackle overestimation bias.
+    # It uses dueling networks.
+    # TODO: NStepReplay and PrioritizedReplay are not Parallel
+    #       see NStepAdvantageBuffer for example
+
+    def act(self, states):
+        self.replay_buffer.store(self._state, self._action, states)
         self._train()
-        self._state = state
-        self._action = self._choose_action(state)
+        self._state = states
+        self._action = self._choose_action(states)
         return self._action
+
+    """
+    def forward(self, state):
+        features = self.conv(state)
+        features = features.view(features.size(0), -1)
+        values = self.value_stream(features)
+        advantages = self.advantage_stream(features)
+        qvals = values + (advantages - advantages.mean())
+        
+        return qvals
+    """
 
     def eval(self, state):
         return self._best_actions(self.q_dist.eval(state)).item()
@@ -204,9 +221,16 @@ class ParallelRainbowPreset(ParallelPreset):
             writer=writer,
         )
 
-        replay_buffer = ExperienceReplayBuffer(
-            self.hyperparameters['replay_buffer_size'],
-            device=self.device
+        replay_buffer = NStepReplayBuffer(
+            self.hyperparameters['n_steps'],
+            self.hyperparameters['discount_factor'],
+            PrioritizedReplayBuffer(
+                self.hyperparameters['replay_buffer_size'],
+                alpha=self.hyperparameters['alpha'],
+                beta=self.hyperparameters['beta'],
+                device=self.device,
+                store_device="cpu"
+            )
         )
 
 
