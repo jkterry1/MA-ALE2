@@ -110,14 +110,12 @@ def InvertColorAgentIndicator(env):
                 rotated_obs = 255 - obs
             else:
                 rotated_obs = obs
-            indicator = np.zeros((1, )+obs.shape[1:],dtype="uint8")
-            indicator[0] = 255 * agent_idx
         elif num_agents == 4:
             # Color rotation
             rotated_obs = ((255*agent_idx)//4 + obs) % 255
-            indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
-            indicator[0] = 255 * (agent_idx % 2)
-            indicator[1] = 255 * (((agent_idx+1) // 2) % 2)
+        indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
+        indicator[0] = 255 * (agent_idx % 2)
+        indicator[1] = 255 * (((agent_idx+1) // 2) % 2)
         return np.concatenate([obs, rotated_obs, indicator], axis=0)
     env = ss.observation_lambda_v0(env, modify_obs)
     env = ss.pad_observations_v0(env)
