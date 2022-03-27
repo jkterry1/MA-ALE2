@@ -33,7 +33,7 @@ parser.add_argument("--study-name", type=str, default=None,
 parser.add_argument("--db-name", type=str, default="maale",
                     help="name of SQL table name. Uses old name as default for testing purposes.")
 parser.add_argument("--db-password", type=str)
-parser.add_argument("--n-trials", type=int, default=100,
+parser.add_argument("--max-trials", type=int, default=100,
                     help="number of trials for EACH environment, or how many times hparams are sampled.")
 parser.add_argument("--from-ckpt", action="store_true",
                     help="learning start from previous trained checkpoints")
@@ -148,7 +148,7 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     return (score - builtin_score) / (rand_score - builtin_score)
 
 
-@ray.remote(num_gpus=args.num_gpus)
+@ray.remote
 def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
     buffer_size = hparams.get('replay_buffer_size', 0)
@@ -185,12 +185,17 @@ def train(hparams, seed, trial, env_id):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
 
-        eval_returns = experiment.test(episodes=args.num_eval_episodes)
         if is_ma_experiment: # MultiAgentEnvExperiment returns dict, but evals are always one key
+            eval_returns = experiment.test(episodes=args.num_eval_episodes)
             assert len(eval_returns) == 1
             eval_returns = list(eval_returns.values())[0]
             experiment._save_model()  # not implemented in Parallel yet
-        # for aid, returns in eval_returns.items():
+        else:
+            # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
+            n_agents = 2
+            eval_returns = experiment.test(episodes=args.num_eval_episodes * n_agents)
+            eval_returns = eval_returns[::n_agents]
+
         mean_return = np.mean(eval_returns)
         norm_return = normalize_score(mean_return, env_id=env_id)
         norm_eval_returns.append(norm_return)
@@ -228,8 +233,12 @@ elif args.trainer_type == "shared_ppo":
 else:
     raise ValueError
 
+N_TRIALS = -1
 def objective_all(trial):
     """Get hyperparams for trial"""
+    global N_TRIALS
+    N_TRIALS = trial.number
+
     hparams = sampler_fn(trial)
 
     seed = trial.number
@@ -263,7 +272,8 @@ if __name__ == "__main__":
                                     study_name=args.study_name,
                                     load_if_exists=True)
 
-    study.optimize(objective_all, n_trials=args.n_trials, timeout=600)
+    while N_TRIALS < args.max_trials:
+        study.optimize(objective_all, n_trials=1, timeout=600)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
