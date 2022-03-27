@@ -160,7 +160,7 @@ if not os.path.exists("log"):
 # 4) Construct the sbatch launch file
 if args.qos == "scav":
     cml_account = "scavenger"
-elif args.qos in ["high", "very_high"]:
+elif args.qos in ["high", "very_high", "high_long"]:
     cml_account = "tomg"
 else:
     cml_account = "cml"
