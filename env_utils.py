@@ -73,7 +73,7 @@ def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
     env = ss.clip_reward_v0(env)            # rewards in (-1, 1)
     env = ss.resize_v0(env, 84, 84)         # resizing
     env = ss.reshape_v0(env, (1, 84, 84))   # reshaping (expand dummy channel dimension)
-    env = frame_stack_v1(env)               # FIXME: why does this reshape to (1,84,336)? Shouldn't it be like (4,84,84)?
+    env = frame_stack_v2(env)               # FIXME: why does this reshape to (1,84,336)? Shouldn't it be like (4,84,84)?
     env = InvertColorAgentIndicator(env)    # reshapes to (3, 84, 84)
     env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 3, 84, 84)
     env = ss.concat_vec_envs_v1(env, num_envs, # -> (n_envs*n_agents, 3, 84, 84)
@@ -137,7 +137,7 @@ def InvertColorAgentIndicator(env):
     return env
 
 
-def frame_stack_v1(env, stack_size=4):
+def frame_stack_v2(env, stack_size=4):
     assert isinstance(stack_size, int), "stack size of frame_stack must be an int"
 
     class FrameStackModifier(BaseModifier):
@@ -159,20 +159,23 @@ def frame_stack_v1(env, stack_size=4):
             self.reset_flag = True
 
         def modify_obs(self, obs):
-            self.stack = stack_obs(
-                self.stack,
-                obs,
-                self.old_obs_space,
-                stack_size,
-            )
             if self.reset_flag:
-                obs_dim = len(self.old_obs_space)
-                if obs_dim == 1:
-                    self.stack[:] = self.stack[-1:]
-                elif obs_dim == 2 or obs_dim == 3:
-                    self.stack[:] = self.stack[:, :, -1:]
+                for _ in range(stack_size):
+                    self.stack = stack_obs(
+                        self.stack,
+                        obs,
+                        self.old_obs_space,
+                        stack_size,
+                    )
 
                 self.reset_flag = False
+            else:
+                self.stack = stack_obs(
+                    self.stack,
+                    obs,
+                    self.old_obs_space,
+                    stack_size,
+                )
 
             return self.stack
 
