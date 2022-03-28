@@ -1,9 +1,15 @@
 import importlib
+import gym
+from gym.spaces import Box, Discrete
 import numpy as np
-from supersuit import resize_v0, frame_skip_v0, reshape_v0, max_observation_v0
-import supersuit as ss
-from pettingzoo.atari.base_atari_env import BaseAtariEnv, ParallelAtariEnv
 from itertools import cycle
+import supersuit as ss
+from supersuit.generic_wrappers.utils.base_modifier import BaseModifier
+from supersuit.generic_wrappers.utils.shared_wrapper_util import shared_wrapper
+from supersuit.utils.frame_stack import stack_obs_space, stack_init, stack_obs
+from supersuit.utils.wrapper_chooser import WrapperChooser
+from pettingzoo.atari.base_atari_env import BaseAtariEnv, ParallelAtariEnv
+from pettingzoo.utils.wrappers import BaseWrapper, BaseParallelWraper
 from all.environments import MultiagentPettingZooEnv, GymVectorEnvironment
 
 
@@ -53,19 +59,26 @@ def make_env(env_name, vs_builtin=False, device='cuda'):
     # env = InvertColorAgentIndicator(env)  # Observation indicator for each agent
     return env
 
-def make_vec_env(env_name, device, vs_builtin=False):
+def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
     if vs_builtin:
-        env = get_base_builtin_env(env_name, parallel=True)
+        env = get_base_builtin_env(env_name, parallel=True, full_action_space=False)
     else:
-        env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).parallel_env(obs_type='grayscale_image')
-    env = ss.max_observation_v0(env, 2) # stacking observation: (env, 2)==stacking 2 frames as observation
-    env = ss.frame_skip_v0(env, 4) # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
-    env = ss.resize_v0(env, 84, 84) # resizing
-    env = ss.reshape_v0(env, (1, 84, 84)) # reshaping (expand dummy channel dimension)
-    env = InvertColorAgentIndicator(env)
-    env = ss.pettingzoo_env_to_vec_env_v1(env)
-    env = ss.concat_vec_envs_v1(env, 32, num_cpus=8, base_class='stable_baselines3')
-    env = GymVectorEnvironment(env, env_name, device=device)
+        env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).parallel_env(
+            obs_type='grayscale_image',
+            full_action_space=False,
+        )
+    env = noop_reset_v0(env)                # skip randint # steps beginning of each episode
+    env = ss.max_observation_v0(env, 2)     # stacking observation: (env, 2)==stacking 2 frames as observation
+    env = ss.frame_skip_v0(env, 4)          # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
+    env = ss.clip_reward_v0(env)            # rewards in (-1, 1)
+    env = ss.resize_v0(env, 84, 84)         # resizing
+    env = ss.reshape_v0(env, (1, 84, 84))   # reshaping (expand dummy channel dimension)
+    env = frame_stack_v1(env)               # FIXME: why does this reshape to (1,84,336)? Shouldn't it be like (4,84,84)?
+    env = InvertColorAgentIndicator(env)    # reshapes to (3, 84, 84)
+    env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 3, 84, 84)
+    env = ss.concat_vec_envs_v1(env, num_envs, # -> (n_envs*n_agents, 3, 84, 84)
+                                num_cpus=num_envs//4, base_class='stable_baselines3')
+    env = GymVectorEnvironment(env, env_name, device=device) # -> (n_envs*n_agents,) shape StateArray
     return env
 
 
@@ -84,12 +97,14 @@ def recolor_surround(surround_env):
     return ss.observation_lambda_v0(surround_env, obs_fn)
 
 
-def get_base_builtin_env(env_name, parallel=False):
+def get_base_builtin_env(env_name, parallel=False, full_action_space=True):
     name_no_version = env_name.rsplit("_", 1)[0]
     if parallel:
-        env = ParallelAtariEnv(game=name_no_version, num_players=1, obs_type='grayscale_image')
+        env = ParallelAtariEnv(game=name_no_version, num_players=1,
+                               obs_type='grayscale_image', full_action_space=full_action_space)
     else:
-        env = BaseAtariEnv(game=name_no_version, num_players=1, obs_type='grayscale_image')
+        env = BaseAtariEnv(game=name_no_version, num_players=1,
+                           obs_type='grayscale_image', full_action_space=full_action_space)
     if name_no_version == "surround":
         env = recolor_surround(env)
     return env
@@ -120,3 +135,95 @@ def InvertColorAgentIndicator(env):
     env = ss.observation_lambda_v0(env, modify_obs)
     env = ss.pad_observations_v0(env)
     return env
+
+
+def frame_stack_v1(env, stack_size=4):
+    assert isinstance(stack_size, int), "stack size of frame_stack must be an int"
+
+    class FrameStackModifier(BaseModifier):
+        def modify_obs_space(self, obs_space):
+            if isinstance(obs_space, Box):
+                assert 1 <= len(obs_space.shape) <= 3, "frame_stack only works for 1, 2 or 3 dimensional observations"
+            elif isinstance(obs_space, Discrete):
+                pass
+            else:
+                assert False, "Stacking is currently only allowed for Box and Discrete observation spaces. The given observation space is {}".format(
+                    obs_space)
+
+            self.old_obs_space = obs_space
+            self.observation_space = stack_obs_space(obs_space, stack_size)
+            return self.observation_space
+
+        def reset(self):
+            self.stack = stack_init(self.old_obs_space, stack_size)
+            self.reset_flag = True
+
+        def modify_obs(self, obs):
+            self.stack = stack_obs(
+                self.stack,
+                obs,
+                self.old_obs_space,
+                stack_size,
+            )
+            if self.reset_flag:
+                obs_dim = len(self.old_obs_space)
+                if obs_dim == 1:
+                    self.stack[:] = self.stack[-1:]
+                elif obs_dim == 2 or obs_dim == 3:
+                    self.stack[:] = self.stack[:, :, -1:]
+
+                self.reset_flag = False
+
+            return self.stack
+
+        def get_last_obs(self):
+            return self.stack
+
+    return shared_wrapper(env, FrameStackModifier)
+
+class noop_reset_gym(gym.Wrapper):
+    def __init__(self, env, noop_max=30):
+        super().__init__(env)
+        self.noop_max = noop_max
+        self.override_num_noops = None
+        self.noop_action = 0
+
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        if self.override_num_noops is not None:
+            noops = self.override_num_noops
+        else:
+            noops = self.unwrapped.np_random.randint(1, self.noop_max + 1)
+        assert noops > 0
+
+        for _ in range(noops):
+            obs, _, done, _ = self.env.step(self.noop_action)
+            if done:
+                obs = self.env.reset(**kwargs)
+        return obs
+
+class noop_reset_par(BaseParallelWraper):
+    def __init__(self, env, noop_max=30):
+        super().__init__(env)
+        self.noop_max = noop_max
+        self.override_num_noops = None
+        self.noop_action = {}
+        for agent in self.possible_agents: # Check
+            self.noop_action[agent] = 0
+
+    def reset(self):
+        obs = super().reset()
+        if self.override_num_noops is not None:
+            noops = self.override_num_noops
+        else:
+            noops = np.random.randint(1, self.noop_max + 1)
+        assert noops > 0
+
+        for _ in range(noops):
+            obs, _, done, _ = self.env.step(self.noop_action)
+            if done:
+                obs = self.env.reset()
+        return obs
+
+
+noop_reset_v0 = WrapperChooser(gym_wrapper=noop_reset_gym, parallel_wrapper=noop_reset_par)
