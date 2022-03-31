@@ -70,13 +70,12 @@ def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
     env = noop_reset_v0(env)                # skip randint # steps beginning of each episode
     env = ss.max_observation_v0(env, 2)     # stacking observation: (env, 2)==stacking 2 frames as observation
     env = ss.frame_skip_v0(env, 4)          # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
-    env = ss.clip_reward_v0(env)            # rewards in (-1, 1)
     env = ss.resize_v0(env, 84, 84)         # resizing
     env = ss.reshape_v0(env, (1, 84, 84))   # reshaping (expand dummy channel dimension)
-    env = frame_stack_v2(env, 4, stack_dim0=True)   # FIXME: why does this reshape to (1,84,336)? Shouldn't it be like (4,84,84)?
-    env = InvertColorAgentIndicator(env)    # reshapes to (3, 84, 84)
-    env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 3, 84, 84)
-    env = ss.concat_vec_envs_v1(env, num_envs, # -> (n_envs*n_agents, 3, 84, 84)
+    env = frame_stack_v2(env, stack_size=4, stack_dim0=True) # -> (4,84,84)
+    env = InvertColorAgentIndicator(env)    # -> (10, 84, 84)
+    env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 10, 84, 84)
+    env = ss.concat_vec_envs_v1(env, num_envs, # -> (n_envs*n_agents, 10, 84, 84)
                                 num_cpus=num_envs//4, base_class='stable_baselines3')
     env = GymVectorEnvironment(env, env_name, device=device) # -> (n_envs*n_agents,) shape StateArray
     return env
