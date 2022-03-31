@@ -40,14 +40,26 @@ default_hyperparameters.update({
 
 class PPONFSPAgent(PPO):
 
-    def __init__(self, features, v, policy, avg_policy, reservoir_buffer, anticipatory=0.1, **kwargs):
+    def __init__(
+            self,
+            features,
+            v,
+            policy,
+            avg_policy,
+            reservoir_buffer,
+            anticipatory=0.1,
+            replay_start_size=5000,
+            **kwargs
+    ):
         super().__init__(features, v, policy, **kwargs)
         self._reservoir_buffer = reservoir_buffer
         self._avg_policy = avg_policy
         self.anticipatory = anticipatory
+        self.replay_start_size = replay_start_size
         self._device = self._reservoir_buffer.device
         self.sample_episode_policy()
         self._frames_seen = 0
+        self.update_frequency = self._batch_size // self.n_envs
 
     def sample_episode_policy(self):
         """Sample average/best_response policy"""
@@ -63,7 +75,7 @@ class PPONFSPAgent(PPO):
 
         self._buffer.store(self._states, self._actions, states.reward)
         if self._mode == 'best_response':
-            self._reservoir_buffer.store(self._state, self._action, states)
+            self._reservoir_buffer.store(self._states, self._actions, states)
             self._actions = self.policy.no_grad(self.features.no_grad(states)).sample()
         elif self._mode == 'average_policy':
             with torch.no_grad():
@@ -94,9 +106,9 @@ class PPONFSPAgent(PPO):
             return ce_loss
 
     def _should_train_avg(self):
-        return self._frames_seen > self.replay_start_size \
-               and self._frames_seen % self.update_frequency == 0 \
-               and len(self._reservoir_buffer) >= self.minibatch_size
+        return (self._frames_seen > self.replay_start_size
+                and self._frames_seen % self.update_frequency == 0
+                and len(self._reservoir_buffer) >= self._batch_size)
 
 
     def _average_action(self, state):
@@ -109,7 +121,7 @@ class PPONFSPAgent(PPO):
 
     def _first_ep_step(self, state) -> bool:
         """whether current timestep is the beginning of an episode"""
-        return state['ep_step'] == 0
+        return state['ep_step'][0] == 0
 
 
 class PPONFSPPreset(PPOAtariPreset):

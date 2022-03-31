@@ -5,6 +5,8 @@ import supersuit as ss
 from pettingzoo.atari.base_atari_env import BaseAtariEnv, ParallelAtariEnv
 from itertools import cycle
 from all.environments import MultiagentPettingZooEnv, GymVectorEnvironment
+from all.environments.vector_env import GymVectorEnvironment
+import torch
 
 
 class MAPZEnvSteps(MultiagentPettingZooEnv):
@@ -17,27 +19,47 @@ class MAPZEnvSteps(MultiagentPettingZooEnv):
         MultiagentPettingZooEnv.__init__(self, zoo_env, name, device=device)
         self._ep_steps = None
 
-
     def _add_env_steps(self, state):
         cur_agent = state['agent']
         state['ep_step'] = self._ep_steps[cur_agent]
         return state
 
     def reset(self):
-        # self._episodes_seen += 1
         self._ep_steps = {ag: 0 for ag in self.agents}
         self._agent_looper = cycle(self.agents)
         return super(MAPZEnvSteps, self).reset()
-        # return self._add_env_steps(state)
 
     def step(self, action):
         self._ep_steps[next(self._agent_looper)] += 1
         return super(MAPZEnvSteps, self).step(action)
-        # return self._add_env_steps(state)
 
     def last(self):
         state = super(MAPZEnvSteps, self).last()
         return self._add_env_steps(state)
+
+
+class GymVectorEnvSteps(GymVectorEnvironment):
+
+    def __init__(self, vec_env, name, device=torch.device('cpu')):
+        super().__init__(vec_env, name, device=device)
+        self._ep_steps = None
+
+    def _add_env_steps(self, state):
+        state['ep_step'] = self._ep_steps * torch.ones(self._env.num_envs, device=self.device)
+        return state
+
+    def reset(self):
+        self._ep_steps = 0
+        state = super().reset()
+        self._state = self._add_env_steps(state)
+        return self._state
+
+    def step(self, action):
+        self._ep_steps += 1
+        state = super().step(action)
+        self._state = self._add_env_steps(state)
+        return self._state
+
 
 
 def make_env(env_name, vs_builtin=False, device='cuda'):
@@ -66,7 +88,8 @@ def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
     env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 3, 84, 84)
     env = ss.concat_vec_envs_v1(env, num_envs, # -> (n_envs*n_agents, 3, 84, 84)
                                 num_cpus=num_envs//4, base_class='stable_baselines3')
-    env = GymVectorEnvironment(env, env_name, device=device) # -> (n_envs*n_agents,) shape StateArray
+    # env = GymVectorEnvironment(env, env_name, device=device) # -> (n_envs*n_agents,) shape StateArray
+    env = GymVectorEnvSteps(env, env_name, device=device) # -> (n_envs*n_agents,) shape StateArray
     return env
 
 
