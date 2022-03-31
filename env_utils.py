@@ -6,7 +6,7 @@ from itertools import cycle
 import supersuit as ss
 from supersuit.generic_wrappers.utils.base_modifier import BaseModifier
 from supersuit.generic_wrappers.utils.shared_wrapper_util import shared_wrapper
-from supersuit.utils.frame_stack import stack_obs_space, stack_init, stack_obs
+# from supersuit.utils.frame_stack import stack_obs_space, stack_init, stack_obs
 from supersuit.utils.wrapper_chooser import WrapperChooser
 from pettingzoo.atari.base_atari_env import BaseAtariEnv, ParallelAtariEnv
 from pettingzoo.utils.wrappers import BaseWrapper, BaseParallelWraper
@@ -73,7 +73,7 @@ def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
     env = ss.clip_reward_v0(env)            # rewards in (-1, 1)
     env = ss.resize_v0(env, 84, 84)         # resizing
     env = ss.reshape_v0(env, (1, 84, 84))   # reshaping (expand dummy channel dimension)
-    env = frame_stack_v2(env)               # FIXME: why does this reshape to (1,84,336)? Shouldn't it be like (4,84,84)?
+    env = frame_stack_v2(env, 4, stack_dim0=True)   # FIXME: why does this reshape to (1,84,336)? Shouldn't it be like (4,84,84)?
     env = InvertColorAgentIndicator(env)    # reshapes to (3, 84, 84)
     env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 3, 84, 84)
     env = ss.concat_vec_envs_v1(env, num_envs, # -> (n_envs*n_agents, 3, 84, 84)
@@ -131,13 +131,123 @@ def InvertColorAgentIndicator(env):
         indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
         indicator[0] = 255 * (agent_idx % 2)
         indicator[1] = 255 * (((agent_idx+1) // 2) % 2)
+        
         return np.concatenate([obs, rotated_obs, indicator], axis=0)
     env = ss.observation_lambda_v0(env, modify_obs)
     env = ss.pad_observations_v0(env)
     return env
 
 
-def frame_stack_v2(env, stack_size=4):
+def get_tile_shape(shape, stack_size, stack_dim0=False):
+    obs_dim = len(shape)
+
+    if not stack_dim0:
+        if obs_dim == 1:
+            tile_shape = (stack_size,)
+            new_shape = shape
+        elif obs_dim == 3:
+            tile_shape = (1, 1, stack_size)
+            new_shape = shape
+        # stack 2-D frames
+        elif obs_dim == 2:
+            tile_shape = (1, 1, stack_size)
+            new_shape = shape + (1,)
+        else:
+            assert False, "Stacking is only avaliable for 1,2 or 3 dimentional arrays"
+
+    else:
+        if obs_dim == 1:
+            tile_shape = (stack_size,)
+            new_shape = shape
+        elif obs_dim == 3:
+            tile_shape = (stack_size,1,1)
+            new_shape = shape
+        # stack 2-D frames
+        elif obs_dim == 2:
+            tile_shape = (stack_size,1,1)
+            new_shape = (1,) + shape
+        else:
+            assert False, "Stacking is only avaliable for 1,2 or 3 dimentional arrays"
+
+    return tile_shape, new_shape
+
+
+def stack_obs_space(obs_space, stack_size, stack_dim0=False):
+    """
+    obs_space_dict: Dictionary of observations spaces of agents
+    stack_size: Number of frames in the observation stack
+    Returns:
+        New obs_space_dict
+    """
+    if isinstance(obs_space, Box):
+        dtype = obs_space.dtype
+        # stack 1-D frames and 3-D frames
+        tile_shape, new_shape = get_tile_shape(obs_space.low.shape, stack_size, stack_dim0)
+
+        low = np.tile(obs_space.low.reshape(new_shape), tile_shape)
+        high = np.tile(obs_space.high.reshape(new_shape), tile_shape)
+        new_obs_space = Box(low=low, high=high, dtype=dtype)
+        return new_obs_space
+    elif isinstance(obs_space, Discrete):
+        return Discrete(obs_space.n ** stack_size)
+    else:
+        assert False, "Stacking is currently only allowed for Box and Discrete observation spaces. The given observation space is {}".format(obs_space)
+
+
+def stack_init(obs_space, stack_size, stack_dim0=False):
+    if isinstance(obs_space, Box):
+        tile_shape, new_shape = get_tile_shape(obs_space.low.shape, stack_size, stack_dim0)
+        return np.tile(np.zeros(new_shape, dtype=obs_space.dtype), tile_shape)
+    else:
+        return 0
+
+
+def stack_obs(frame_stack, obs, obs_space, stack_size, stack_dim0=False):
+    """
+    Parameters
+    ----------
+    frame_stack : if not None, it is the stack of frames
+    obs : new observation
+        Rearranges frame_stack. Appends the new observation at the end.
+        Throws away the oldest observation.
+    stack_size : needed for stacking reset observations
+    """
+    if isinstance(obs_space, Box):
+        obs_shape = obs.shape
+        agent_fs = frame_stack
+
+        if len(obs_shape) == 1:
+            size = obs_shape[0]
+            agent_fs[:-size] = agent_fs[size:]
+            agent_fs[-size:] = obs
+        
+        elif len(obs_shape) == 2:
+            if not stack_dim0: 
+                agent_fs[:, :, :-1] = agent_fs[:, :, 1:]
+                agent_fs[:, :, -1] = obs
+            else:
+                agent_fs[:-1] = agent_fs[1:]
+                agent_fs[:-1] = obs
+
+        elif len(obs_shape) == 3:
+            if not stack_dim0:
+                nchannels = obs_shape[-1]
+                agent_fs[:, :, :-nchannels] = agent_fs[:, :, nchannels:]
+                agent_fs[:, :, -nchannels:] = obs 
+            else:
+                nchannels = obs_shape[0]
+                agent_fs[:-nchannels] = agent_fs[nchannels:]
+                agent_fs[-nchannels:] = obs 
+            
+        return agent_fs
+
+    elif isinstance(obs_space, Discrete):
+        return (frame_stack * obs_space.n + obs) % (obs_space.n ** stack_size)
+
+
+
+
+def frame_stack_v2(env, stack_size=4, stack_dim0=False):
     assert isinstance(stack_size, int), "stack size of frame_stack must be an int"
 
     class FrameStackModifier(BaseModifier):
@@ -147,15 +257,14 @@ def frame_stack_v2(env, stack_size=4):
             elif isinstance(obs_space, Discrete):
                 pass
             else:
-                assert False, "Stacking is currently only allowed for Box and Discrete observation spaces. The given observation space is {}".format(
-                    obs_space)
+                assert False, "Stacking is currently only allowed for Box and Discrete observation spaces. The given observation space is {}".format(obs_space)
 
             self.old_obs_space = obs_space
-            self.observation_space = stack_obs_space(obs_space, stack_size)
+            self.observation_space = stack_obs_space(obs_space, stack_size, stack_dim0)
             return self.observation_space
 
         def reset(self):
-            self.stack = stack_init(self.old_obs_space, stack_size)
+            self.stack = stack_init(self.old_obs_space, stack_size, stack_dim0)
             self.reset_flag = True
 
         def modify_obs(self, obs):
@@ -166,8 +275,9 @@ def frame_stack_v2(env, stack_size=4):
                         obs,
                         self.old_obs_space,
                         stack_size,
+                        stack_dim0
                     )
-
+                    
                 self.reset_flag = False
             else:
                 self.stack = stack_obs(
@@ -175,6 +285,7 @@ def frame_stack_v2(env, stack_size=4):
                     obs,
                     self.old_obs_space,
                     stack_size,
+                    stack_dim0
                 )
 
             return self.stack
