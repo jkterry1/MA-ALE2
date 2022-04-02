@@ -24,9 +24,9 @@ from all.approximation import FixedTarget
 from .nfsp import ReservoirBuffer
 
 from env_utils import make_vec_env
-from all.presets import atari
 from all.experiments import ParallelEnvExperiment
 from all.presets import ParallelPresetBuilder
+from all.core.state import StateArray
 
 
 from all.presets.atari.ppo import default_hyperparameters
@@ -57,33 +57,63 @@ class PPONFSPAgent(PPO):
         self.anticipatory = anticipatory
         self.replay_start_size = replay_start_size
         self._device = self._reservoir_buffer.device
-        self.sample_episode_policy()
         self._frames_seen = 0
         self.update_frequency = self._batch_size // self.n_envs
 
-    def sample_episode_policy(self):
-        """Sample average/best_response policy"""
-        if np.random.rand() < self.anticipatory:
-            self._mode = 'best_response'
-        else:
-            self._mode = 'average_policy'
+        # initialize best response / avg policy modes
+        self._br_modes = torch.rand(self.n_envs).to(self._device) < self.anticipatory
+
+
+    def _sample_episode_policy(self, dones: torch.Tensor):
+        """Sample average/best_response policies"""
+        best_response_sample = torch.rand(dones.shape[0]).to(self._device) < self.anticipatory
+        return dones*best_response_sample + ~dones*self._br_modes
+
+    def _split_tensor(self, tensor):
+        if tensor is None:
+            return None, None
+        br_data = tensor[self._br_modes]
+        avg_data = tensor[~self._br_modes]
+        return br_data, avg_data
+
+    def _split_states(self, states):
+        if states is None:
+            return None, None
+
+        br_data, avg_data = {}, {}
+        for k,v in states.items():
+            br_tensor, avg_tensor = self._split_tensor(v)
+            br_data[k] = br_tensor
+            avg_data[k] = avg_tensor
+
+        br_shape = (self._br_modes.sum(),)
+        avg_shape = (~self._br_modes.sum(),)
+        return StateArray(br_data, shape=br_shape), StateArray(avg_data, shape=avg_shape)
 
     def act(self, states):
         self._frames_seen += 1
-        if self._first_ep_step(states):
-            self.sample_episode_policy()
 
         self._buffer.store(self._states, self._actions, states.reward)
-        if self._mode == 'best_response':
-            self._reservoir_buffer.store(self._states, self._actions, states)
-            self._actions = self.policy.no_grad(self.features.no_grad(states)).sample()
-        elif self._mode == 'average_policy':
-            with torch.no_grad():
-                self._actions = self._average_action(states).to(self._device)
-        else: raise ValueError
+
+        br_states, avg_states = self._split_states(self._states)
+        br_actions, avg_actions = self._split_tensor(self._actions)
+        br_states_next, avg_states_next = self._split_states(states)
+
+        if False and self._br_modes.any():
+            self._reservoir_buffer.store(br_states, br_actions, br_states_next)
+
+        br_actions_next = self.policy.no_grad(self.features.no_grad(states)).sample()
+        with torch.no_grad():
+            avg_actions_next = self._average_action(states).to(self._device)
+
+        self._actions = self._br_modes*br_actions_next + ~self._br_modes*avg_actions_next
+
         self._states = states
         self._train(states)
         self._train_avg()
+
+        if states.done.any():
+            self._br_modes = self._sample_episode_policy(states.done)
 
         return self._actions
 
@@ -118,10 +148,6 @@ class PPONFSPAgent(PPO):
         actions = probs.multinomial(1).squeeze()
 
         return actions
-
-    def _first_ep_step(self, state) -> bool:
-        """whether current timestep is the beginning of an episode"""
-        return state['ep_step'][0] == 0
 
 
 class PPONFSPPreset(PPOAtariPreset):
