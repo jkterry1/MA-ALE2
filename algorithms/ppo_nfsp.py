@@ -1,32 +1,25 @@
-from all.presets.atari.ppo import PPOAtariPreset
-from all.agents.ppo import PPO
-from all.presets.atari.models import nature_features, nature_policy_head, nature_rainbow
-
-from all.nn import RLNetwork, NoisyFactorizedLinear
 import torch
 from torch import nn
 import torch.nn.functional as F
-import numpy as np
-
-import copy
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
+
+from all.presets.atari.ppo import PPOAtariPreset
+from all.nn import RLNetwork, NoisyFactorizedLinear
 from all.agents import PPO, PPOTestAgent
 from all.bodies import DeepmindAtariBody
 from all.approximation import VNetwork, FeatureNetwork
 from all.logging import DummyWriter
 from all.optim import LinearScheduler
 from all.policies import SoftmaxPolicy
-from all.presets.atari.models import nature_features, nature_value_head, nature_policy_head
-
+from all.presets.atari.models import nature_features
 from all.approximation import Approximation
 from all.approximation import FixedTarget
-from .nfsp import ReservoirBuffer
-
-from env_utils import make_vec_env
 from all.experiments import ParallelEnvExperiment
 from all.presets import ParallelPresetBuilder
-from all.core.state import StateArray
+
+from .nfsp import ReservoirBuffer
+from env_utils import make_vec_env
 
 
 from all.presets.atari.ppo import default_hyperparameters
@@ -63,50 +56,39 @@ class PPONFSPAgent(PPO):
         # initialize best response / avg policy modes
         self._br_modes = torch.rand(self.n_envs).to(self._device) < self.anticipatory
 
+    @property
+    def _avg_modes(self) -> torch.tensor:
+        return ~self._br_modes
+
 
     def _sample_episode_policy(self, dones: torch.Tensor):
         """Sample average/best_response policies"""
         best_response_sample = torch.rand(dones.shape[0]).to(self._device) < self.anticipatory
         return dones*best_response_sample + ~dones*self._br_modes
 
-    def _split_tensor(self, tensor):
-        if tensor is None:
-            return None, None
-        br_data = tensor[self._br_modes]
-        avg_data = tensor[~self._br_modes]
-        return br_data, avg_data
 
     def _split_states(self, states):
         if states is None:
             return None, None
+        return states[self._br_modes], states[self._avg_modes]
 
-        br_data, avg_data = {}, {}
-        for k,v in states.items():
-            br_tensor, avg_tensor = self._split_tensor(v)
-            br_data[k] = br_tensor
-            avg_data[k] = avg_tensor
-
-        br_shape = (self._br_modes.sum(),)
-        avg_shape = (~self._br_modes.sum(),)
-        return StateArray(br_data, shape=br_shape), StateArray(avg_data, shape=avg_shape)
 
     def act(self, states):
         self._frames_seen += 1
 
         self._buffer.store(self._states, self._actions, states.reward)
 
-        br_states, avg_states = self._split_states(self._states)
-        br_actions, avg_actions = self._split_tensor(self._actions)
-        br_states_next, avg_states_next = self._split_states(states)
-
-        if False and self._br_modes.any():
+        if self._br_modes.any():
+            br_states, _ = self._split_states(self._states)
+            br_actions, _ = self._split_states(self._actions)
+            br_states_next, _ = self._split_states(states)
             self._reservoir_buffer.store(br_states, br_actions, br_states_next)
 
         br_actions_next = self.policy.no_grad(self.features.no_grad(states)).sample()
         with torch.no_grad():
             avg_actions_next = self._average_action(states).to(self._device)
 
-        self._actions = self._br_modes*br_actions_next + ~self._br_modes*avg_actions_next
+        self._actions = self._br_modes*br_actions_next + self._avg_modes*avg_actions_next
 
         self._states = states
         self._train(states)
@@ -203,7 +185,7 @@ class PPONFSPPreset(PPOAtariPreset):
             writer=writer,
         )
 
-        reservoir_buffer = ReservoirBuffer(
+        reservoir_buffer = ParallelReservoirBuffer(
             self.hyperparameters['replay_buffer_size'],
             device=self.device,
             store_device="cpu",
@@ -255,3 +237,23 @@ def make_ppo_nfsp(env_name, device, _, **kwargs):
     experiment = ParallelEnvExperiment(preset, venv, test_env=test_venv)
     return experiment, preset, venv
 
+
+class ParallelReservoirBuffer(ReservoirBuffer):
+    ''' Allows uniform sampling over a stream of data.
+
+    This class supports the storage of arbitrary elements, such as observation
+    tensors, integer actions, etc.
+
+    See https://en.wikipedia.org/wiki/Reservoir_sampling for more details.
+    '''
+
+    def store(self, states, actions, next_states):
+        if states is None:
+            return
+
+        not_done_idxs = (~states.done).nonzero().flatten().tolist()
+        for i in not_done_idxs:
+            state = states[i].to(self.store_device)
+            action = actions[i].to(self.store_device)
+            next_state = next_states[i].to(self.store_device)
+            self._add((state, action, next_state))
