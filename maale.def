@@ -1,0 +1,30 @@
+Bootstrap: docker
+From: ubuntu:18.04
+
+%environment
+	export LANG=C.UTF-8 LC_ALL=C.UTF-8
+
+%post
+	# Install dependencies for miniconda
+	apt-get -q update && apt-get -q install -y automake build-essential bzip2 wget git default-jre unzip
+	# Install miniconda 
+	wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+	/bin/bash ~/miniconda.sh -b -p /opt/conda/
+	rm ~/miniconda.sh
+	# Add to activate maale env by default in Singularity shell command
+	echo ". /opt/conda/etc/profile.d/conda.sh" >> $SINGULARITY_ENVIRONMENT
+	echo "conda activate maale" >> $SINGULARITY_ENVIRONMENT
+	# Install requirements for MA-ALE2
+	apt-get install -y default-libmysqlclient-dev libgl1-mesa-glx libglib2.0-0
+	# Make conda env with python version 3.8.12
+	/opt/conda/bin/conda create -y -n maale python==3.8.12
+
+%runscript
+	if cd ~/singularity_workspace; then echo "Using existing dir $PWD"; else mkdir ~/singularity_workspace; fi
+	if cd ~/singularity_workspace/MA-ALE2; then git pull; else git clone https://github.com/jkterry1/MA-ALE2.git ~/singularity_workspace/MA-ALE2; fi
+	python -V
+	# conda info
+	export PATH="/home/$(whoami)/.local/bin:$PATH"
+	pip install -q -r requirements.txt
+	AutoROM --accept-license
+	pip list -v
