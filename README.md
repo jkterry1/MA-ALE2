@@ -67,7 +67,27 @@ python cml.py hparam_search_cmds.txt --conda ma-ale --min_preemptions \
     --gpus [num] --mem [48*num_gpus] > optuna.log 2>&1 
 ```
 
+## Container
+Build singularity image with definition file.
+```
+sudo singularity build maale.sif maale.def
+```
+Runscript in the image will pull the latest version of master branch under **~/singularity_workspace/** and install dependencies specified in requirements.txt. Make sure to run image before running the train script to keep up-to-date code status for the training.
+```
+# Runscript for pull
+singularity run maale.sif
 
+# Activate shell for the instance
+singularity shell --pwd ~/singularity_workspace/MA-ALE2 --nv maale.sif
+```
+After getting into the singularity shell, use your train code to start the train run.
+```
+Singularity> CUDA_VISIBLE_DEVICES=0 [your train command]
+```
+e.g. 
+```
+Singularity> CUDA_VISIBLE_DEVICES=0 python -O hparam_search.py --envs boxing_v1,double_dunk_v2,ice_hockey_v1,pong_v2,surround_v1,tennis_v2 --study-name sig_test --local --max-trials 25
+```
 
 ## Files Overview
 
