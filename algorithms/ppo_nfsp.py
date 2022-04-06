@@ -18,7 +18,7 @@ from all.approximation import FixedTarget
 from all.experiments import ParallelEnvExperiment
 from all.presets import ParallelPresetBuilder
 
-from .nfsp import ReservoirBuffer
+from buffers import ParallelReservoirBuffer
 from env_utils import make_vec_env
 
 
@@ -42,6 +42,7 @@ class PPONFSPAgent(PPO):
             reservoir_buffer,
             anticipatory=0.1,
             replay_start_size=5000,
+            n_actions=None,
             **kwargs
     ):
         super().__init__(features, v, policy, **kwargs)
@@ -52,6 +53,7 @@ class PPONFSPAgent(PPO):
         self._device = self._reservoir_buffer.device
         self._frames_seen = 0
         self.update_frequency = self._batch_size // self.n_envs
+        self.n_actions = n_actions
 
         # initialize best response / avg policy modes
         self._br_modes = torch.rand(self.n_envs).to(self._device) < self.anticipatory
@@ -74,7 +76,7 @@ class PPONFSPAgent(PPO):
 
 
     def act(self, states):
-        self._frames_seen += 1
+        self._frames_seen += self.n_envs
 
         self._buffer.store(self._states, self._actions, states.reward)
 
@@ -101,12 +103,12 @@ class PPONFSPAgent(PPO):
 
     def _train_avg(self):
         if self._should_train_avg():
-            transitions = self._reservoir_buffer.sample(self.minibatch_size)
+            transitions = self._reservoir_buffer.sample(self._batch_size)
             states, actions, rewards, next_states, weights = transitions
 
             # RLcard repo just one-hots the actions. Likely to get around the
             #   Q/policy origin issue (no action probs for best_action or exploration)
-            one_hot = F.one_hot(actions, num_classes=self.q_dist.n_actions)
+            one_hot = F.one_hot(actions, num_classes=self.n_actions)
             action_probs = self._avg_policy(states)
             # cross entropy loss and do optimizer step
             ce_loss = - (one_hot * action_probs).sum(dim=-1).mean()
@@ -137,10 +139,11 @@ class PPONFSPPreset(PPOAtariPreset):
     def __init__(self, env, name, device, **hyperparameters):
         hparams = {**default_hyperparameters, **hyperparameters}
         super().__init__(env, name, device, **hparams)
+        self.n_actions = env.action_space.n
 
         self.avg_model = RLNetwork(nn.Sequential(
             nature_features(frames=16),
-            NoisyFactorizedLinear(512, env.action_space.n),
+            NoisyFactorizedLinear(512, self.n_actions),
         )).to(device)
 
     def agent(self, writer=DummyWriter(), train_steps=float('inf')):
@@ -215,6 +218,7 @@ class PPONFSPPreset(PPOAtariPreset):
                 lam=self.hyperparameters["lam"],
                 entropy_loss_scaling=self.hyperparameters["entropy_loss_scaling"],
                 writer=writer,
+                n_actions=self.n_actions
             )
         )
 
@@ -238,22 +242,3 @@ def make_ppo_nfsp(env_name, device, _, **kwargs):
     return experiment, preset, venv
 
 
-class ParallelReservoirBuffer(ReservoirBuffer):
-    ''' Allows uniform sampling over a stream of data.
-
-    This class supports the storage of arbitrary elements, such as observation
-    tensors, integer actions, etc.
-
-    See https://en.wikipedia.org/wiki/Reservoir_sampling for more details.
-    '''
-
-    def store(self, states, actions, next_states):
-        if states is None:
-            return
-
-        not_done_idxs = (~states.done).nonzero().flatten().tolist()
-        for i in not_done_idxs:
-            state = states[i].to(self.store_device)
-            action = actions[i].to(self.store_device)
-            next_state = next_states[i].to(self.store_device)
-            self._add((state, action, next_state))

@@ -13,7 +13,9 @@ from all.presets import ParallelPreset
 from all.memory import ExperienceReplayBuffer, PrioritizedReplayBuffer, NStepReplayBuffer, NStepAdvantageBuffer
 from all.agents._parallel_agent import ParallelAgent
 from all.experiments import ParallelEnvExperiment
+
 from env_utils import make_vec_env
+from buffers import ParallelNStepBuffer
 
 
 
@@ -23,11 +25,11 @@ default_hyperparameters = {
     "eps": 1.5e-4,
     # Training settings
     "minibatch_size": 128,
-    "update_frequency": 32,
+    "update_frequency": 1024,
     "target_update_frequency": 1000,
     # Replay buffer settings
     "replay_start_size": 20000,
-    "replay_buffer_size": 1000000,
+    "replay_buffer_size": 50000,
     # Explicit exploration
     "initial_exploration": 0.02,
     "final_exploration": 0.,
@@ -83,7 +85,11 @@ class ParallelRainbow(ParallelAgent):
             replay_start_size=5000,
             update_frequency=1,
             writer=DummyWriter(),
+            n_envs=None
     ):
+        if n_envs is None:
+            raise RuntimeError("Must specify n_envs.")
+        self.n_envs = n_envs
         # objects
         self.q_dist = q_dist
         self.replay_buffer = replay_buffer
@@ -100,37 +106,23 @@ class ParallelRainbow(ParallelAgent):
         self._action = None
         self._frames_seen = 0
 
-    # TODO: these Rainbow features are not present
-    # It uses Double Q-Learning to tackle overestimation bias.
-    # It uses dueling networks.
-    # TODO: NStepReplay and PrioritizedReplay are not Parallel
-    #       see NStepAdvantageBuffer for example
 
     def act(self, states):
+        self._frames_seen += self.n_envs
         self.replay_buffer.store(self._state, self._action, states)
         self._train()
         self._state = states
         self._action = self._choose_action(states)
         return self._action
 
-    """
-    def forward(self, state):
-        features = self.conv(state)
-        features = features.view(features.size(0), -1)
-        values = self.value_stream(features)
-        advantages = self.advantage_stream(features)
-        qvals = values + (advantages - advantages.mean())
-        
-        return qvals
-    """
 
     def eval(self, state):
-        return self._best_actions(self.q_dist.eval(state)).item()
+        return self._best_actions(self.q_dist.eval(state))
 
     def _choose_action(self, state):
         if self._should_explore():
-            return np.random.randint(0, self.q_dist.n_actions)
-        return self._best_actions(self.q_dist.no_grad(state)).item()
+            return torch.randint(low=0, high=self.q_dist.n_actions, size=state.shape)
+        return self._best_actions(self.q_dist.no_grad(state))
 
     def _should_explore(self):
         return (
@@ -163,8 +155,8 @@ class ParallelRainbow(ParallelAgent):
             )
 
     def _should_train(self):
-        self._frames_seen += 1
-        return self._frames_seen > self.replay_start_size and self._frames_seen % self.update_frequency == 0
+        return self._frames_seen > self.replay_start_size \
+               and self._frames_seen % self.update_frequency < self.n_envs
 
     def _compute_target_dist(self, states, rewards):
         actions = self._best_actions(self.q_dist.no_grad(states))
@@ -221,7 +213,7 @@ class ParallelRainbowPreset(ParallelPreset):
             writer=writer,
         )
 
-        replay_buffer = NStepReplayBuffer(
+        replay_buffer = ParallelNStepBuffer(
             self.hyperparameters['n_steps'],
             self.hyperparameters['discount_factor'],
             PrioritizedReplayBuffer(
@@ -230,7 +222,8 @@ class ParallelRainbowPreset(ParallelPreset):
                 beta=self.hyperparameters['beta'],
                 device=self.device,
                 store_device="cpu"
-            )
+            ),
+            n_envs=self.n_envs,
         )
 
 
@@ -250,7 +243,8 @@ class ParallelRainbowPreset(ParallelPreset):
                 minibatch_size=self.hyperparameters["minibatch_size"],
                 replay_start_size=self.hyperparameters["replay_start_size"],
                 update_frequency=self.hyperparameters["update_frequency"],
-                writer=writer
+                writer=writer,
+                n_envs=self.n_envs,
             ),
         )
 
@@ -271,6 +265,9 @@ class ParallelRainbowPreset(ParallelPreset):
 
 parallel_rainbow = ParallelPresetBuilder('parallel_rainbow', default_hyperparameters, ParallelRainbowPreset)
 
+def rainbow_model(env, frames=16, hidden=512, atoms=51, sigma=0.5):
+    return nature_rainbow(env, frames, hidden, atoms, sigma)
+
 def make_parallel_rainbow(env_name, device, replay_buffer_size, **kwargs):
     n_envs = 16
     venv = make_vec_env(env_name, device=device, vs_builtin=False, num_envs=n_envs)
@@ -279,6 +276,7 @@ def make_parallel_rainbow(env_name, device, replay_buffer_size, **kwargs):
     quiet = kwargs.get('quiet', False)
     hparams = kwargs.get('hparams', {})
     hparams['n_envs'] = n_envs * 2  # num agents
+    hparams['model_constructor'] = rainbow_model
 
     preset = parallel_rainbow.env(venv).device(device).hyperparameters(**hparams).build()
     experiment = ParallelEnvExperiment(preset, venv, test_env=test_venv, quiet=quiet)
