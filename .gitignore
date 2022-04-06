@@ -7,3 +7,4 @@ events.out.tfcache*
 runs/
 checkpoint/
 raytmp/
+.sif
