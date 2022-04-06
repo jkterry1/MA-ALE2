@@ -22,6 +22,7 @@ From: ubuntu:18.04
 %runscript
 	if cd ~/singularity_workspace; then echo "Using existing dir $PWD"; else mkdir ~/singularity_workspace; fi
 	if cd ~/singularity_workspace/MA-ALE2; then git pull; else git clone https://github.com/jkterry1/MA-ALE2.git ~/singularity_workspace/MA-ALE2; fi
+	cd ~/singularity_workspace/MA-ALE2
 	python -V
 	# conda info
 	export PATH="/home/$(whoami)/.local/bin:$PATH"
