@@ -12,7 +12,7 @@ parser.add_argument("--num-jobs", type=int, default=1,
 parser.add_argument("--gpus-per-job", type=int, required=True,
                     help="how many GPUs to allocate per python process (training 6 envs)")
 parser.add_argument("--trainer-type", type=str, default="nfsp_rainbow",
-                    choices=["nfsp_rainbow","shared_rainbow","shared_ppo"])
+                    choices=["nfsp_rainbow","shared_rainbow","shared_ppo","nfsp_ppo","parallel_rainbow","parallel_rainbow_nfsp"])
 # parser.add_argument("--redis-address", type=str, default=None,   # TODO
 #                     help="redis address to connect to Head node and share resources")
 args = parser.parse_args()
