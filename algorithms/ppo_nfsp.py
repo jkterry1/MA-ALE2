@@ -121,7 +121,7 @@ class PPONFSPAgent(PPO):
 
     def _should_train_avg(self):
         return (self._frames_seen > self.replay_start_size
-                and self._frames_seen % self.update_frequency == 0
+                and self._frames_seen % self.update_frequency < self.n_envs
                 and len(self._reservoir_buffer) >= self._batch_size)
 
 

@@ -6,6 +6,7 @@ from algorithms.independent_rainbow import make_indepedent_rainbow
 from algorithms.shared_ppo import make_ppo_vec, make_ppo_vec_largenet
 from algorithms.nfsp import make_nfsp_rainbow
 from algorithms.parallel_rainbow import make_parallel_rainbow
+from algorithms.parallel_rainbow_nfsp import make_parallel_rainbow_nfsp
 from algorithms.ppo_nfsp import make_ppo_nfsp
 from shared_utils import save_name
 import numpy as np
@@ -25,6 +26,7 @@ trainer_types = {
     "shared_ppo_largenet": make_ppo_vec_largenet,
     "nfsp_rainbow": make_nfsp_rainbow,
     "parallel_rainbow": make_parallel_rainbow,
+    "parallel_rainbow_nfsp": make_parallel_rainbow_nfsp,
     "ppo_nfsp": make_ppo_nfsp,
 }
 
