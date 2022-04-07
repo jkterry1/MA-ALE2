@@ -14,7 +14,7 @@ from algorithms.shared_rainbow import make_rainbow_preset
 from algorithms.independent_rainbow import make_indepedent_rainbow
 # from ppo_ram import make_ppo_ram_vec
 from algorithms.shared_ppo import make_ppo_vec, make_ppo_vec_largenet
-from algorithms.nfsp import make_nfsp_rainbow
+from algorithms.rainbow_nfsp import make_nfsp_rainbow
 
 trainer_types = {
     "shared_rainbow": make_rainbow_preset,

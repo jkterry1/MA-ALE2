@@ -4,7 +4,7 @@ import json
 import argparse
 import os
 import torch
-from algorithms.nfsp import save_name
+from algorithms.rainbow_nfsp import save_name
 import numpy as np
 import random
 from experiment_train import trainer_types
@@ -113,39 +113,60 @@ def train(hparams, seed, trial, env_id):
             frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
             preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
 
-    num_envs = int(experiment._env.num_envs)
-    returns = np.zeros(num_envs)
-    state_array = env.reset()
-    start_time = time.time()
-    completed_frames = 0
-    frame = frame_start
-    while frame <= num_frames_train:
-        action = experiment._agent.act(state_array)
-        state_array = env.step(action)
-        frame += num_envs
-        episodes_completed = state_array.done.type(torch.IntTensor).sum().item()
-        completed_frames += num_envs
-        returns += state_array.reward.cpu().detach().numpy()
-        if episodes_completed > 0:
-            dones = state_array.done.cpu().detach().numpy()
-            cur_time = time.time()
-            fps = completed_frames / (cur_time - start_time)
-            completed_frames = 0
-            start_time = cur_time
-            for i in range(num_envs):
-                if dones[i]:
-                    experiment._log_training_episode(returns[i], fps)
-                    returns[i] = 0
-        experiment._episode += episodes_completed
+    if not is_ma_experiment:
+        num_envs = int(experiment._env.num_envs)
+        returns = np.zeros(num_envs)
+        state_array = env.reset()
+        start_time = time.time()
+        completed_frames = 0
+        frame = frame_start
 
-        if (frame % frames_per_save) < num_envs:
-            # time to save and eval
-            torch.save(preset, f"{save_folder}/{frame:09d}.pt")
+        while frame <= num_frames_train:
+            action = experiment._agent.act(state_array)
+            state_array = env.step(action)
+            frame += num_envs
+            episodes_completed = state_array.done.type(torch.IntTensor).sum().item()
+            completed_frames += num_envs
+            returns += state_array.reward.cpu().detach().numpy()
+            if episodes_completed > 0:
+                dones = state_array.done.cpu().detach().numpy()
+                cur_time = time.time()
+                fps = completed_frames / (cur_time - start_time)
+                completed_frames = 0
+                start_time = cur_time
+                for i in range(num_envs):
+                    if dones[i]:
+                        experiment._log_training_episode(returns[i], fps)
+                        returns[i] = 0
+            experiment._episode += episodes_completed
 
-            # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
-            n_agents = 2
-            eval_returns = experiment.test(episodes=args.num_eval_episodes * n_agents)
-            eval_returns = eval_returns[::n_agents]
+            if (frame % frames_per_save) < num_envs:
+                # time to save and eval
+                torch.save(preset, f"{save_folder}/{frame:09d}.pt")
+
+                # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
+                n_agents = 2
+                eval_returns = experiment.test(episodes=args.num_eval_episodes * n_agents)
+                eval_returns = eval_returns[::n_agents]
+
+                mean_return = np.mean(eval_returns)
+                norm_return = normalize_score(mean_return, env_id=env_id)
+                norm_eval_returns.append(norm_return)
+                avg_norm_return = np.mean(norm_eval_returns)
+
+                # Handle pruning based on the intermediate value.
+                trial.report(value=avg_norm_return, step=frame)
+                if trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()
+    else:
+        for frame in range(frame_start, num_frames_train, frames_per_save):
+            experiment.train(frames=frame, trial=trial)
+            torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
+
+            eval_returns = experiment.test(episodes=args.num_eval_episodes)
+            assert len(eval_returns) == 1
+            eval_returns = list(eval_returns.values())[0]
+            experiment._save_model()  # not implemented in Parallel yet
 
             mean_return = np.mean(eval_returns)
             norm_return = normalize_score(mean_return, env_id=env_id)
@@ -153,34 +174,9 @@ def train(hparams, seed, trial, env_id):
             avg_norm_return = np.mean(norm_eval_returns)
 
             # Handle pruning based on the intermediate value.
-            trial.report(value=avg_norm_return, step=frame)
+            trial.report(value=avg_norm_return, step=frame + frames_per_save)
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
-
-    # for frame in range(frame_start, num_frames_train, frames_per_save):
-    #     experiment.train(frames=frame, trial=trial)
-    #     torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
-    #
-    #     if is_ma_experiment: # MultiAgentEnvExperiment returns dict, but evals are always one key
-    #         eval_returns = experiment.test(episodes=args.num_eval_episodes)
-    #         assert len(eval_returns) == 1
-    #         eval_returns = list(eval_returns.values())[0]
-    #         experiment._save_model()  # not implemented in Parallel yet
-    #     else:
-    #         # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
-    #         n_agents = 2
-    #         eval_returns = experiment.test(episodes=args.num_eval_episodes * n_agents)
-    #         eval_returns = eval_returns[::n_agents]
-    #
-    #     mean_return = np.mean(eval_returns)
-    #     norm_return = normalize_score(mean_return, env_id=env_id)
-    #     norm_eval_returns.append(norm_return)
-    #     avg_norm_return = np.mean(norm_eval_returns)
-    #
-    #     # Handle pruning based on the intermediate value.
-    #     trial.report(value=avg_norm_return, step=frame + frames_per_save)
-    #     if trial.should_prune():
-    #         raise optuna.exceptions.TrialPruned()
 
     # if ckpt is already fully existed
     if frame_start >= num_frames_train:

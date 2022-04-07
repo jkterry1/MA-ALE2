@@ -6,7 +6,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from all.presets.atari.ppo import PPOAtariPreset
 from all.nn import RLNetwork, NoisyFactorizedLinear
-from all.agents import PPO, PPOTestAgent
+from all.agents import PPO
 from all.bodies import DeepmindAtariBody
 from all.approximation import VNetwork, FeatureNetwork
 from all.logging import DummyWriter
@@ -20,6 +20,7 @@ from all.presets import ParallelPresetBuilder
 
 from buffers import ParallelReservoirBuffer
 from env_utils import make_vec_env
+from models import our_nat_features
 
 
 from all.presets.atari.ppo import default_hyperparameters
@@ -142,7 +143,7 @@ class PPONFSPPreset(PPOAtariPreset):
         self.n_actions = env.action_space.n
 
         self.avg_model = RLNetwork(nn.Sequential(
-            nature_features(frames=16),
+            self.hyperparameters['feature_model_constructor'](),
             NoisyFactorizedLinear(512, self.n_actions),
         )).to(device)
 
@@ -219,26 +220,25 @@ class PPONFSPPreset(PPOAtariPreset):
                 entropy_loss_scaling=self.hyperparameters["entropy_loss_scaling"],
                 writer=writer,
                 n_actions=self.n_actions
-            )
+            ), frame_stack=0
         )
 
 ppo_nfsp = ParallelPresetBuilder('ppo_nfsp', default_hyperparameters, PPONFSPPreset)
 
-def nat_features():
-    return nature_features(16)
 
 def make_ppo_nfsp(env_name, device, _, **kwargs):
     venv = make_vec_env(env_name, device=device, vs_builtin=False)
     test_venv = make_vec_env(env_name, device=device, vs_builtin=True)
 
+    quiet = kwargs.get('quiet', False)
     hparams = kwargs.get('hparams', {})
     preset = ppo_nfsp.env(venv).device(device).hyperparameters(
         n_envs=venv.num_envs,
-        feature_model_constructor=nat_features,
+        feature_model_constructor=our_nat_features,
         **hparams
     ).build()
 
-    experiment = ParallelEnvExperiment(preset, venv, test_env=test_venv)
+    experiment = ParallelEnvExperiment(preset, venv, test_env=test_venv, quiet=quiet)
     return experiment, preset, venv
 
 

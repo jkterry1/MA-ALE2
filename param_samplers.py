@@ -23,7 +23,7 @@ def sample_rainbow_params(trial: optuna.Trial) -> Dict[str, Any]:
     target_update_interval = trial.suggest_categorical("target_update_interval", [1, 1000, 5000, 10000, 15000, 20000])
     learning_starts = trial.suggest_categorical("learning_starts", [1000, 5000, 10000, 20000])
     noisy_linear_sigma = trial.suggest_uniform("noisy_linear_sigma", 0.1, 0.9)
-    train_freq = trial.suggest_categorical("train_freq", [1, 4, 8, 16, 128, 256, 1000])
+    train_freq = trial.suggest_categorical("train_freq", [32, 128, 256, 512, 1024, 2048, 4096, 8192, 16384])
     n_quantiles = trial.suggest_int("n_quantiles", 5, 200)
 
     hyperparams = sample_common_params(trial)

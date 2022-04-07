@@ -178,8 +178,6 @@ class ParallelRainbowTestAgent(ParallelAgent):
         self.exploration = exploration
 
     def act(self, state):
-        if np.random.rand() < self.exploration:
-            return np.random.randint(0, self.n_actions)
         q_values = (self.q_dist(state) * self.q_dist.atoms).sum(dim=-1)
         return torch.argmax(q_values, dim=-1)
 
@@ -246,6 +244,7 @@ class ParallelRainbowPreset(ParallelPreset):
                 writer=writer,
                 n_envs=self.n_envs,
             ),
+            frame_stack=0
         )
 
     def test_agent(self):
@@ -257,7 +256,7 @@ class ParallelRainbowPreset(ParallelPreset):
             v_min=self.hyperparameters['v_min'],
             v_max=self.hyperparameters['v_max'],
         )
-        return DeepmindAtariBody(ParallelRainbowTestAgent(q_dist, self.n_actions, self.hyperparameters["test_exploration"]))
+        return DeepmindAtariBody(ParallelRainbowTestAgent(q_dist, self.n_actions, self.hyperparameters["test_exploration"]), frame_stack=0)
 
     def parallel_test_agent(self):
         return self.test_agent()
@@ -265,7 +264,7 @@ class ParallelRainbowPreset(ParallelPreset):
 
 parallel_rainbow = ParallelPresetBuilder('parallel_rainbow', default_hyperparameters, ParallelRainbowPreset)
 
-def rainbow_model(env, frames=16, hidden=512, atoms=51, sigma=0.5):
+def rainbow_model(env, frames=10, hidden=512, atoms=51, sigma=0.5):
     return nature_rainbow(env, frames, hidden, atoms, sigma)
 
 def make_parallel_rainbow(env_name, device, replay_buffer_size, **kwargs):

@@ -95,6 +95,7 @@ def make_ppo_vec(env_name, device, _, **kwargs):
     venv = make_vec_env(env_name, device=device, vs_builtin=False)
     test_venv = make_vec_env(env_name, device=device, vs_builtin=True)
 
+    quiet = kwargs.get('quiet', False)
     hparams = kwargs.get('hparams', {})
     preset = ppo_preset.env(venv).device(device).hyperparameters(
         n_envs=venv.num_envs,
@@ -102,7 +103,7 @@ def make_ppo_vec(env_name, device, _, **kwargs):
         **hparams
     ).build()
 
-    experiment = ParallelEnvExperiment(preset, venv)
+    experiment = ParallelEnvExperiment(preset, venv, test_env=test_venv, quiet=quiet)
     return experiment, preset, venv
 
 

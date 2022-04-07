@@ -19,7 +19,7 @@ from all.nn import RLNetwork, NoisyFactorizedLinear
 from env_utils import make_vec_env
 from buffers import ParallelNStepBuffer, ParallelReservoirBuffer
 from .parallel_rainbow import ParallelRainbow, ParallelRainbowPreset
-from models import nature_features
+from models import our_nat_features
 
 
 
@@ -175,8 +175,6 @@ class ParallelRainbowTestAgent(ParallelAgent):
         self.exploration = exploration
 
     def act(self, state):
-        if np.random.rand() < self.exploration:
-            return np.random.randint(0, self.n_actions)
         q_values = (self.q_dist(state) * self.q_dist.atoms).sum(dim=-1)
         return torch.argmax(q_values, dim=-1)
 
@@ -188,7 +186,7 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
         super(ParallelRainbowNFSPPreset, self).__init__(env, name, device, **hyperparameters)
 
         self.avg_model = RLNetwork(nn.Sequential(
-            nature_features(frames=16),
+            our_nat_features(),
             NoisyFactorizedLinear(512, self.n_actions),
         )).to(device)
 
@@ -263,6 +261,7 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
                 writer=writer,
                 n_envs=self.n_envs,
             ),
+            frame_stack=0
         )
 
 
@@ -282,12 +281,8 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
             device=self.device,
             target=FixedTarget(self.hyperparameters['target_update_frequency']),
         )
-        return DeepmindAtariBody(ParallelRainbowTestAgent(
-            q_dist,
-            avg_policy,
-            self.n_actions,
-            self.hyperparameters["test_exploration"])
-        )
+        return DeepmindAtariBody(ParallelRainbowTestAgent(q_dist, avg_policy, self.n_actions, self.hyperparameters["test_exploration"]),
+                                 frame_stack=0)
 
     def parallel_test_agent(self):
         return self.test_agent()
@@ -295,7 +290,7 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
 
 parallel_rainbow_nfsp = ParallelPresetBuilder('parallel_rainbow_nfsp', default_hyperparameters, ParallelRainbowNFSPPreset)
 
-def rainbow_model(env, frames=16, hidden=512, atoms=51, sigma=0.5):
+def rainbow_model(env, frames=10, hidden=512, atoms=51, sigma=0.5):
     return nature_rainbow(env, frames, hidden, atoms, sigma)
 
 def make_parallel_rainbow_nfsp(env_name, device, replay_buffer_size, **kwargs):
