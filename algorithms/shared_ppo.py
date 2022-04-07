@@ -92,8 +92,9 @@ ppo_preset = ParallelPresetBuilder('ppo_preset', atari.ppo.default_hyperparamete
 
 
 def make_ppo_vec(env_name, device, _, **kwargs):
-    venv = make_vec_env(env_name, device=device, vs_builtin=False)
-    test_venv = make_vec_env(env_name, device=device, vs_builtin=True)
+    n_envs = 12
+    venv = make_vec_env(env_name, device=device, vs_builtin=False, num_envs=n_envs)
+    test_venv = make_vec_env(env_name, device=device, vs_builtin=True, num_envs=n_envs)
 
     quiet = kwargs.get('quiet', False)
     hparams = kwargs.get('hparams', {})

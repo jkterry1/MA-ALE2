@@ -42,7 +42,7 @@ def sample_rainbow_params(trial: optuna.Trial) -> Dict[str, Any]:
 
 def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
     """Sampler for PPO hyperparams."""
-    n_steps = trial.suggest_categorical("n_steps", [8, 16, 32, 64, 128, 256, 512, 1024, 2048])
+    n_steps = trial.suggest_categorical("n_steps", [8, 16, 32, 64, 128, 256, 512])
     ent_coef = trial.suggest_loguniform("ent_coef", 0.00000001, 0.1)
     minibatches = trial.suggest_categorical("minibatches", [1, 4, 8, 16, 32])
     n_epochs = trial.suggest_categorical("n_epochs", [1, 5, 10, 20])
