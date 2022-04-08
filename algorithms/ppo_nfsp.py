@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from all.presets.atari.ppo import PPOAtariPreset
 from all.nn import RLNetwork, NoisyFactorizedLinear
 from all.agents import PPO
 from all.bodies import DeepmindAtariBody
@@ -12,7 +11,6 @@ from all.approximation import VNetwork, FeatureNetwork
 from all.logging import DummyWriter
 from all.optim import LinearScheduler
 from all.policies import SoftmaxPolicy
-from all.presets.atari.models import nature_features
 from all.approximation import Approximation
 from all.approximation import FixedTarget
 from all.experiments import ParallelEnvExperiment
@@ -21,6 +19,7 @@ from all.presets import ParallelPresetBuilder
 from buffers import ParallelReservoirBuffer
 from env_utils import make_vec_env
 from models import our_nat_features
+from .shared_ppo import PPOPreset
 
 
 from all.presets.atari.ppo import default_hyperparameters
@@ -135,7 +134,7 @@ class PPONFSPAgent(PPO):
         return actions
 
 
-class PPONFSPPreset(PPOAtariPreset):
+class PPONFSPPreset(PPOPreset):
 
     def __init__(self, env, name, device, **hyperparameters):
         hparams = {**default_hyperparameters, **hyperparameters}
