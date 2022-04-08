@@ -42,6 +42,8 @@ parser.add_argument("--from-ckpt", action="store_true",
 args = parser.parse_args()
 args.device = 'cuda' if args.num_gpus > 0 else 'cpu'
 
+if args.device == 'cuda':
+    os.environ['CUDA_VISIBLE_DEVICES'] = ",".join([str(i) for i in range(args.num_gpus)])
 
 
 SQL_ADDRESS = f"mysql://{args.db_user}:{args.db_password}@35.194.57.226/{args.db_name}"
