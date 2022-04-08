@@ -17,7 +17,7 @@ def sample_common_params(trial: optuna.Trial) -> Dict:
 def sample_rainbow_params(trial: optuna.Trial) -> Dict[str, Any]:
     """Sampler for Rainbow hyperparameters"""
     batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 100, 128, 256, 512])
-    buffer_size = trial.suggest_categorical("buffer_size", [int(1e4), int(5e4), int(1e5), int(1e6)])
+    buffer_size = trial.suggest_categorical("buffer_size", [int(1e4), int(5e4), int(1e5)])
     exploration_final_eps = trial.suggest_uniform("exploration_final_eps", 0, 0.2)
     exploration_fraction = trial.suggest_uniform("exploration_fraction", 0, 0.5)
     target_update_interval = trial.suggest_categorical("target_update_interval", [1, 1000, 5000, 10000, 15000, 20000])
@@ -70,8 +70,10 @@ def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
 def sample_nfsp_params(trial: optuna.Trial) -> Dict[str, Any]:
     """Sampler for extra NFSP hyperparameters"""
     anticipatory = trial.suggest_loguniform("anticipatory", 0.01, 0.5)
+    reservoir_buffer_size = trial.suggest_categorical("reservoir_buffer_size", [int(1e5), int(5e5), int(1e6)])
     hyperparams = {
         "anticipatory": anticipatory,
+        "reservoir_buffer_size": reservoir_buffer_size,
     }
     return hyperparams
 

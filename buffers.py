@@ -3,7 +3,7 @@ import torch
 import numpy as np
 
 from all.memory import ReplayBuffer, NStepReplayBuffer, ExperienceReplayBuffer
-
+from all.core import State
 
 class ParallelNStepBuffer(ReplayBuffer):
 
@@ -73,6 +73,14 @@ class ReservoirBuffer(ExperienceReplayBuffer):
         minibatch = random.sample(self.buffer, num_samples)
         return self._reshape(minibatch, torch.ones(num_samples, device=self.device))
 
+    def _reshape(self, minibatch, weights):
+        states = State.array([sample[0] for sample in minibatch]).to(self.device)
+        if torch.is_tensor(minibatch[0][1]):
+            actions = torch.stack([sample[1] for sample in minibatch]).to(self.device)
+        else:
+            actions = torch.tensor([sample[1] for sample in minibatch], device=self.device)
+        return (states, actions, None, None, weights)
+
 
 class ParallelReservoirBuffer(ReservoirBuffer):
     """ResevoirBuffer compatible with ParallelAgents"""
@@ -85,5 +93,4 @@ class ParallelReservoirBuffer(ReservoirBuffer):
         for i in not_done_idxs:
             state = states[i].to(self.store_device)
             action = actions[i].to(self.store_device)
-            next_state = next_states[i].to(self.store_device)
-            self._add((state, action, next_state))
+            self._add((state, action, None))

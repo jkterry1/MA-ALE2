@@ -56,6 +56,7 @@ default_hyperparameters = {
     "n_envs": 16,
     # NFSP
     "anticipatory": 0.1,
+    "reservoir_buffer_size": 200000,
 }
 
 
@@ -119,8 +120,7 @@ class ParallelRainbowNFSP(ParallelRainbow):
         if self._br_modes.any():
             br_states, _ = self._split_states(self._state)
             br_actions, _ = self._split_states(self._action)
-            br_states_next, _ = self._split_states(states)
-            self._reservoir_buffer.store(br_states, br_actions, br_states_next)
+            self._reservoir_buffer.store(br_states, br_actions, None)
 
         br_actions_next = self._choose_action(states).to(self._device)
         with torch.no_grad():
@@ -235,7 +235,7 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
         )
 
         reservoir_buffer = ParallelReservoirBuffer(
-            self.hyperparameters['replay_buffer_size'],
+            self.hyperparameters['reservoir_buffer_size'],
             device=self.device,
             store_device="cpu",
         )

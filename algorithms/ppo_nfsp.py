@@ -29,6 +29,7 @@ default_hyperparameters.update({
     "replay_start_size": 80000,
     "replay_buffer_size": 1000000,
     "anticipatory": 0.1,
+    "reservoir_buffer_size": 100000,
 })
 
 
@@ -84,8 +85,7 @@ class PPONFSPAgent(PPO):
         if self._br_modes.any():
             br_states, _ = self._split_states(self._states)
             br_actions, _ = self._split_states(self._actions)
-            br_states_next, _ = self._split_states(states)
-            self._reservoir_buffer.store(br_states, br_actions, br_states_next)
+            self._reservoir_buffer.store(br_states, br_actions, None)
 
         br_actions_next = self.policy.no_grad(self.features.no_grad(states)).sample()
         with torch.no_grad():
@@ -190,7 +190,7 @@ class PPONFSPPreset(PPOAtariPreset):
         )
 
         reservoir_buffer = ParallelReservoirBuffer(
-            self.hyperparameters['replay_buffer_size'],
+            self.hyperparameters['reservoir_buffer_size'],
             device=self.device,
             store_device="cpu",
         )
