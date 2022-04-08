@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--study-name", type=str, required=True)
 parser.add_argument("--db-password", type=str, required=True)
 parser.add_argument("--db-name", type=str, required=True)
-parser.add_argument("--max-trials", type=int, default=100)
+parser.add_argument("--max-trials", type=int, default=150)
 parser.add_argument("--num-jobs", type=int, default=1,
                     help="how many python processes to split n-trials across")
 parser.add_argument("--gpus-per-job", type=int, required=True,
