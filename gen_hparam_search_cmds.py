@@ -13,8 +13,7 @@ parser.add_argument("--gpus-per-job", type=int, required=True,
                     help="how many GPUs to allocate per python process (training 6 envs)")
 parser.add_argument("--trainer-type", type=str, default="nfsp_rainbow",
                     choices=["nfsp_rainbow","shared_rainbow","shared_ppo","nfsp_ppo","parallel_rainbow","parallel_rainbow_nfsp"])
-# parser.add_argument("--redis-address", type=str, default=None,   # TODO
-#                     help="redis address to connect to Head node and share resources")
+parser.add_argument("--filename", type=str, default="hparam_search_cmds.txt")
 args = parser.parse_args()
 
 
@@ -40,5 +39,5 @@ for job_i in range(args.num_jobs):
 cmd_file = pathlib.Path("hparam_search_cmds.txt")
 cmd_file.unlink(missing_ok=True)
 
-with open("hparam_search_cmds.txt", "w") as fd:
+with open(args.filename, "w") as fd:
     fd.writelines(lines)
