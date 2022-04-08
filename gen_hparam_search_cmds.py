@@ -6,6 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--study-name", type=str, required=True)
 parser.add_argument("--db-password", type=str, required=True)
 parser.add_argument("--db-name", type=str, required=True)
+parser.add_argument("--db-user", type=str, default="database")
 parser.add_argument("--max-trials", type=int, default=150)
 parser.add_argument("--num-jobs", type=int, default=1,
                     help="how many python processes to split n-trials across")
@@ -31,8 +32,8 @@ lines = []
 for job_i in range(args.num_jobs):
     lines.append(f"python -O hparam_search.py --trainer-type {args.trainer_type} --envs {envs_str} "
                  f"--study-name {args.study_name} "
-                 f"--db-password {args.db_password} --db-name {args.db_name} --max-trials {args.max_trials} "
-                 f"--num-gpus {args.gpus_per_job} \n")
+                 f"--db-password {args.db_password} --db-name {args.db_name} --db-user {args.db_user} "
+                 f"--max-trials {args.max_trials} --num-gpus {args.gpus_per_job} \n")
 
 
 # Remove command file if already exists

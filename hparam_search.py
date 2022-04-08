@@ -34,6 +34,7 @@ parser.add_argument("--study-name", type=str, default=None,
 parser.add_argument("--db-name", type=str, default="maale",
                     help="name of SQL table name. Uses old name as default for testing purposes.")
 parser.add_argument("--db-password", type=str)
+parser.add_argument("--db-user", type=str, default='database')
 parser.add_argument("--max-trials", type=int, default=100,
                     help="number of trials for EACH environment, or how many times hparams are sampled.")
 parser.add_argument("--from-ckpt", action="store_true",
@@ -43,7 +44,7 @@ args.device = 'cuda' if args.num_gpus > 0 else 'cpu'
 
 
 
-SQL_ADDRESS = f"mysql://database:{args.db_password}@35.194.57.226/{args.db_name}"
+SQL_ADDRESS = f"mysql://{args.db_user}:{args.db_password}@35.194.57.226/{args.db_name}"
 
 env_list = args.envs.split(',')
 
