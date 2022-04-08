@@ -43,6 +43,7 @@ args = parser.parse_args()
 args.device = 'cuda' if args.num_gpus > 0 else 'cpu'
 
 if args.device == 'cuda':
+    print('CUDA_VISIBLE_DEVICES:', os.environ['CUDA_VISIBLE_DEVICES'])
     os.environ['CUDA_VISIBLE_DEVICES'] = ",".join([str(i) for i in range(args.num_gpus)])
 
 
