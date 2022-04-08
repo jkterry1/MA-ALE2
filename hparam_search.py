@@ -85,7 +85,7 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     return (score - builtin_score) / (rand_score - builtin_score)
 
 
-@ray.remote
+@ray.remote(num_gpus=args.num_gpus, max_calls=1)
 def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
     buffer_size = hparams.get('replay_buffer_size', None)
