@@ -85,7 +85,7 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     return (score - builtin_score) / (rand_score - builtin_score)
 
 
-@ray.remote(num_gpus=args.num_gpus/6, max_calls=6)
+@ray.remote(num_gpus=args.num_gpus/len(env_list), max_calls=len(env_list))
 def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
     buffer_size = hparams.get('replay_buffer_size', None)
@@ -123,12 +123,12 @@ def train(hparams, seed, trial, env_id):
         state_array = env.reset()
         start_time = time.time()
         completed_frames = 0
-        frame = frame_start
+        experiment._frame = frame_start
 
-        while frame <= num_frames_train:
+        while experiment._frame <= num_frames_train:
             action = experiment._agent.act(state_array)
             state_array = env.step(action)
-            frame += num_envs
+            experiment._frame += num_envs
             episodes_completed = state_array.done.type(torch.IntTensor).sum().item()
             completed_frames += num_envs
             returns += state_array.reward.cpu().detach().numpy()
@@ -144,9 +144,9 @@ def train(hparams, seed, trial, env_id):
                         returns[i] = 0
             experiment._episode += episodes_completed
 
-            if (frame % frames_per_save) < num_envs:
+            if (experiment._frame % frames_per_save) < num_envs:
                 # time to save and eval
-                torch.save(preset, f"{save_folder}/{frame:09d}.pt")
+                torch.save(preset, f"{save_folder}/{experiment._frame:09d}.pt")
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
                 n_agents = 2
@@ -159,7 +159,7 @@ def train(hparams, seed, trial, env_id):
                 avg_norm_return = np.mean(norm_eval_returns)
 
                 # Handle pruning based on the intermediate value.
-                trial.report(value=avg_norm_return, step=frame)
+                trial.report(value=avg_norm_return, step=experiment._frame)
                 if trial.should_prune():
                     raise optuna.exceptions.TrialPruned()
     else:
@@ -196,7 +196,7 @@ def train(hparams, seed, trial, env_id):
         avg_norm_return = np.mean(norm_eval_returns)
 
         # Handle pruning based on the intermediate value.
-        trial.report(value=avg_norm_return, step=frame + frames_per_save)
+        trial.report(value=avg_norm_return, step=experiment._frame + frames_per_save)
 
     # clean up?
     del experiment, preset, env
