@@ -162,6 +162,7 @@ if args.qos == "scav":
     cml_account = "scavenger"
 elif args.qos in ["high", "very_high", "high_long"]:
     cml_account = "john"
+    cpus = 18
 else:
     cml_account = "cml"
 
