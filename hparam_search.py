@@ -31,6 +31,8 @@ parser.add_argument("--envs", type=str, required=True,
                     help="must be comma-separated list of envs with no spaces!")
 parser.add_argument("--study-name", type=str, default=None,
                     help="name of shared Optuna study for distributed training")
+parser.add_argument("--study-create", default=False, action="store_true",
+                    help="will create study if does not already exist")
 parser.add_argument("--db-name", type=str, default="maale",
                     help="name of SQL table name. Uses old name as default for testing purposes.")
 parser.add_argument("--db-password", type=str)
@@ -238,10 +240,14 @@ if __name__ == "__main__":
         temp_dir = pathlib.Path(__file__).parent.resolve().joinpath("raytmp")
         ray.init(num_gpus=args.num_gpus, local_mode=False, _temp_dir=str(temp_dir))
         time.sleep(10)
-        study = optuna.create_study(direction="maximize",
-                                    storage=SQL_ADDRESS,
-                                    study_name=args.study_name,
-                                    load_if_exists=True)
+        if args.study_create:
+            study = optuna.create_study(direction="maximize",
+                                        storage=SQL_ADDRESS,
+                                        study_name=args.study_name,
+                                        load_if_exists=True)
+        else:
+            study = optuna.load_study(study_name=args.study_name,
+                                      storage=SQL_ADDRESS)
 
     while N_TRIALS < args.max_trials:
         study.optimize(objective_all, n_trials=1, timeout=600)
