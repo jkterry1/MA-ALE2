@@ -94,7 +94,7 @@ def train(hparams, seed, trial, env_id):
 
     # use non-parallel rainbow nfsp if reservoir buffer is too large for RAM
     ttype = args.trainer_type
-    if ttype == "parallel_rainbow_nfsp" and hparams['reservoir_buffer_size'] >= int(5e5):
+    if ttype == "parallel_rainbow_nfsp" and hparams['replay_buffer_size'] >= int(1e5):
         ttype = "nfsp_rainbow"
     experiment, preset, env = trainer_types[ttype](
         env_id, args.device, buffer_size,
