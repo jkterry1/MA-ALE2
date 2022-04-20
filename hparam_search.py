@@ -63,7 +63,7 @@ with open("plot_data/rand_rewards.json", "r") as fd:
 
 if args.trainer_type in ["shared_rainbow", "parallel_rainbow"]:
     sampler_fn = sample_rainbow_params
-elif args.trainer_type == "nfsp_rainbow":
+elif args.trainer_type in ["nfsp_rainbow", "parallel_rainbow_nfsp"]:
     sampler_fn = sample_nfsp_rainbow_params
 elif args.trainer_type == "shared_ppo":
     sampler_fn = sample_ppo_params
@@ -91,7 +91,12 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
 def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
     buffer_size = hparams.get('replay_buffer_size', None)
-    experiment, preset, env = trainer_types[args.trainer_type](
+
+    # use non-parallel rainbow nfsp if reservoir buffer is too large for RAM
+    ttype = args.trainer_type
+    if ttype == "parallel_rainbow_nfsp" and hparams['reservoir_buffer_size'] >= int(5e5):
+        ttype = "nfsp_rainbow"
+    experiment, preset, env = trainer_types[ttype](
         env_id, args.device, buffer_size,
         seed=seed,
         num_frames=args.frames,
@@ -103,7 +108,7 @@ def train(hparams, seed, trial, env_id):
     if is_ma_experiment: # TODO: not supported by ParallelEnvExperiment yet
         experiment.seed_env(seed)
 
-    save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, buffer_size, args.frames, seed)
+    save_folder = "checkpoint/" + save_name(ttype, env_id, buffer_size, args.frames, seed)
     norm_eval_returns = []
     norm_return, avg_norm_return = None, None
 
@@ -166,7 +171,7 @@ def train(hparams, seed, trial, env_id):
                     raise optuna.exceptions.TrialPruned()
     else:
         for frame in range(frame_start, num_frames_train, frames_per_save):
-            experiment.train(frames=frame, trial=trial)
+            experiment.train(frames=frame)
             torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
 
             eval_returns = experiment.test(episodes=args.num_eval_episodes)

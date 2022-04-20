@@ -79,6 +79,7 @@ default_hyperparameters = {
     "sigma": 0.5,
     # NFSP
     "anticipatory": 0.1,
+    "reservoir_buffer_size": 200000,
     # Model construction
     "model_constructor": nature_rainbow,
 }
@@ -316,7 +317,7 @@ class NFSPRainbowPreset(Preset):
             writer=writer,
         )
         reservoir_buffer = ReservoirBuffer(
-            self.hyperparameters['replay_buffer_size'],
+            self.hyperparameters['reservoir_buffer_size'],
             device=self.device,
             store_device="cpu",
         )

@@ -46,15 +46,17 @@ class MAPZEnvSteps(MultiagentPettingZooEnv):
 
 def make_env(env_name, vs_builtin=False, device='cuda'):
     if vs_builtin:
-        env = get_base_builtin_env(env_name)
+        env = get_base_builtin_env(env_name, full_action_space=False)
     else:
-        env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).env(obs_type='grayscale_image')
-    env = ss.max_observation_v0(env, 2)  # sequential observation: (env, 2)== maximum 2 frames can be observation and then skip
-    env = ss.frame_skip_v0(env, 4)  # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
-    env = ss.resize_v0(env, 84, 84)  # resizing
-    env = ss.reshape_v0(env, (1, 84, 84))  # reshaping
-    # FIXME: this breaks nfsp rainbow for some reason?
-    # env = InvertColorAgentIndicator(env)  # Observation indicator for each agent
+        env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).env(
+            obs_type='grayscale_image',
+            full_action_space=False,
+        )
+    env = noop_reset_v0(env)                # skip randint # steps beginning of each episode
+    env = ss.max_observation_v0(env, 2)     # sequential observation: (env, 2)== maximum 2 frames can be observation and then skip
+    env = ss.frame_skip_v0(env, 4)          # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
+    env = ss.resize_v0(env, 84, 84)         # resizing
+    env = ss.reshape_v0(env, (1, 84, 84))   # reshaping (expand dummy channel dimension)
     return env
 
 def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
