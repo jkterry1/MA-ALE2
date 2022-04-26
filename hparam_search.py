@@ -93,10 +93,7 @@ def train(hparams, seed, trial, env_id):
     buffer_size = hparams.get('replay_buffer_size', None)
 
     # use non-parallel rainbow nfsp if reservoir buffer is too large for RAM
-    ttype = args.trainer_type
-    if ttype == "parallel_rainbow_nfsp" and hparams['replay_buffer_size'] >= int(1e5):
-        ttype = "nfsp_rainbow"
-    experiment, preset, env = trainer_types[ttype](
+    experiment, preset, env = trainer_types[args.trainer_type](
         env_id, args.device, buffer_size,
         seed=seed,
         num_frames=args.frames,
@@ -108,7 +105,7 @@ def train(hparams, seed, trial, env_id):
     if is_ma_experiment: # TODO: not supported by ParallelEnvExperiment yet
         experiment.seed_env(seed)
 
-    save_folder = "checkpoint/" + save_name(ttype, env_id, buffer_size, args.frames, seed)
+    save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, buffer_size, args.frames, seed)
     norm_eval_returns = []
     norm_return, avg_norm_return = None, None
 
