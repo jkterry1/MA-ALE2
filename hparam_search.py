@@ -39,7 +39,7 @@ parser.add_argument("--db-password", type=str)
 parser.add_argument("--db-user", type=str, default='database')
 parser.add_argument("--max-trials", type=int, default=100,
                     help="number of trials for EACH environment, or how many times hparams are sampled.")
-parser.add_argument("--from-ckpt", action="store_true",
+parser.add_argument("--no-ckpt", action="store_true",
                     help="learning start from previous trained checkpoints")
 args = parser.parse_args()
 args.device = 'cuda' if args.num_gpus > 0 else 'cpu'
@@ -116,9 +116,9 @@ def train(hparams, seed, trial, env_id):
 
     # Start from the last preset
     frame_start = 0
-    if args.from_ckpt:
-        if len(os.listdir(save_folder)) != 0:
-            frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
+    if not args.no_ckpt and len(os.listdir(save_folder)) != 0:
+        frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
+        if frame_start < num_frames_train:
             preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
 
     if not is_ma_experiment:
@@ -185,25 +185,6 @@ def train(hparams, seed, trial, env_id):
             trial.report(value=avg_norm_return, step=frame + frames_per_save)
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
-
-    # if ckpt is already fully existed
-    if frame_start >= num_frames_train:
-        eval_returns = experiment.test(episodes=args.num_eval_episodes)
-        if is_ma_experiment: # MultiAgentEnvExperiment returns dict, but evals are always one key
-            assert len(eval_returns) == 1
-            eval_returns = list(eval_returns.values())[0]
-            experiment._save_model()  # not implemented in Parallel yet
-        # for aid, returns in eval_returns.items():
-        mean_return = np.mean(eval_returns)
-        norm_return = normalize_score(mean_return, env_id=env_id)
-        norm_eval_returns.append(norm_return)
-        avg_norm_return = np.mean(norm_eval_returns)
-
-        # Handle pruning based on the intermediate value.
-        trial.report(value=avg_norm_return, step=experiment._frame + frames_per_save)
-
-    # clean up?
-    del experiment, preset, env
 
     return avg_norm_return
 
