@@ -15,7 +15,7 @@ from all.agents._parallel_agent import ParallelAgent
 from all.experiments import ParallelEnvExperiment
 
 from env_utils import make_vec_env
-from buffers import ParallelNStepBuffer
+from buffers import ParallelNStepBuffer, CompressedPrioritizedReplayBuffer
 
 
 
@@ -214,8 +214,9 @@ class ParallelRainbowPreset(ParallelPreset):
         replay_buffer = ParallelNStepBuffer(
             self.hyperparameters['n_steps'],
             self.hyperparameters['discount_factor'],
-            PrioritizedReplayBuffer(
+            CompressedPrioritizedReplayBuffer(
                 self.hyperparameters['replay_buffer_size'],
+                compress=True,
                 alpha=self.hyperparameters['alpha'],
                 beta=self.hyperparameters['beta'],
                 device=self.device,

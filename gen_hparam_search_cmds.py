@@ -4,6 +4,8 @@ import pathlib
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--study-name", type=str, required=True)
+parser.add_argument("--study-create", default=False, action="store_true",
+                    help="will create study if does not already exist")
 parser.add_argument("--db-password", type=str, required=True)
 parser.add_argument("--db-name", type=str, required=True)
 parser.add_argument("--db-user", type=str, default="database")
@@ -31,7 +33,7 @@ envs_str = ','.join(eval_envs)
 lines = []
 for job_i in range(args.num_jobs):
     lines.append(f"python -O hparam_search.py --trainer-type {args.trainer_type} --envs {envs_str} "
-                 f"--study-name {args.study_name} "
+                 f"--study-name {args.study_name} {'--study-create' if args.study_create else ''} "
                  f"--db-password {args.db_password} --db-name {args.db_name} --db-user {args.db_user} "
                  f"--max-trials {args.max_trials} --num-gpus {args.gpus_per_job} \n")
 

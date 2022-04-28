@@ -31,6 +31,8 @@ parser.add_argument("--envs", type=str, required=True,
                     help="must be comma-separated list of envs with no spaces!")
 parser.add_argument("--study-name", type=str, default=None,
                     help="name of shared Optuna study for distributed training")
+parser.add_argument("--study-create", default=False, action="store_true",
+                    help="will create study if does not already exist")
 parser.add_argument("--db-name", type=str, default="maale",
                     help="name of SQL table name. Uses old name as default for testing purposes.")
 parser.add_argument("--db-password", type=str)
@@ -61,7 +63,7 @@ with open("plot_data/rand_rewards.json", "r") as fd:
 
 if args.trainer_type in ["shared_rainbow", "parallel_rainbow"]:
     sampler_fn = sample_rainbow_params
-elif args.trainer_type == "nfsp_rainbow":
+elif args.trainer_type in ["nfsp_rainbow", "parallel_rainbow_nfsp"]:
     sampler_fn = sample_nfsp_rainbow_params
 elif args.trainer_type == "shared_ppo":
     sampler_fn = sample_ppo_params
@@ -85,10 +87,12 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     return (score - builtin_score) / (rand_score - builtin_score)
 
 
-@ray.remote(num_gpus=args.num_gpus/6, max_calls=6)
+@ray.remote(num_gpus=args.num_gpus/len(env_list), max_calls=len(env_list))
 def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
     buffer_size = hparams.get('replay_buffer_size', None)
+
+    # use non-parallel rainbow nfsp if reservoir buffer is too large for RAM
     experiment, preset, env = trainer_types[args.trainer_type](
         env_id, args.device, buffer_size,
         seed=seed,
@@ -123,12 +127,12 @@ def train(hparams, seed, trial, env_id):
         state_array = env.reset()
         start_time = time.time()
         completed_frames = 0
-        frame = frame_start
+        experiment._frame = frame_start
 
-        while frame <= num_frames_train:
+        while experiment._frame <= num_frames_train:
             action = experiment._agent.act(state_array)
             state_array = env.step(action)
-            frame += num_envs
+            experiment._frame += num_envs
             episodes_completed = state_array.done.type(torch.IntTensor).sum().item()
             completed_frames += num_envs
             returns += state_array.reward.cpu().detach().numpy()
@@ -144,9 +148,9 @@ def train(hparams, seed, trial, env_id):
                         returns[i] = 0
             experiment._episode += episodes_completed
 
-            if (frame % frames_per_save) < num_envs:
+            if (experiment._frame % frames_per_save) < num_envs:
                 # time to save and eval
-                torch.save(preset, f"{save_folder}/{frame:09d}.pt")
+                torch.save(preset, f"{save_folder}/{experiment._frame:09d}.pt")
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
                 n_agents = 2
@@ -159,12 +163,12 @@ def train(hparams, seed, trial, env_id):
                 avg_norm_return = np.mean(norm_eval_returns)
 
                 # Handle pruning based on the intermediate value.
-                trial.report(value=avg_norm_return, step=frame)
+                trial.report(value=avg_norm_return, step=experiment._frame)
                 if trial.should_prune():
                     raise optuna.exceptions.TrialPruned()
     else:
         for frame in range(frame_start, num_frames_train, frames_per_save):
-            experiment.train(frames=frame, trial=trial)
+            experiment.train(frames=frame)
             torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
 
             eval_returns = experiment.test(episodes=args.num_eval_episodes)
@@ -196,7 +200,7 @@ def train(hparams, seed, trial, env_id):
         avg_norm_return = np.mean(norm_eval_returns)
 
         # Handle pruning based on the intermediate value.
-        trial.report(value=avg_norm_return, step=frame + frames_per_save)
+        trial.report(value=avg_norm_return, step=experiment._frame + frames_per_save)
 
     # clean up?
     del experiment, preset, env
@@ -238,10 +242,14 @@ if __name__ == "__main__":
         temp_dir = pathlib.Path(__file__).parent.resolve().joinpath("raytmp")
         ray.init(num_gpus=args.num_gpus, local_mode=False, _temp_dir=str(temp_dir))
         time.sleep(10)
-        study = optuna.create_study(direction="maximize",
-                                    storage=SQL_ADDRESS,
-                                    study_name=args.study_name,
-                                    load_if_exists=True)
+        if args.study_create:
+            study = optuna.create_study(direction="maximize",
+                                        storage=SQL_ADDRESS,
+                                        study_name=args.study_name,
+                                        load_if_exists=True)
+        else:
+            study = optuna.load_study(study_name=args.study_name,
+                                      storage=SQL_ADDRESS)
 
     while N_TRIALS < args.max_trials:
         study.optimize(objective_all, n_trials=1, timeout=600)

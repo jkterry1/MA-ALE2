@@ -17,7 +17,7 @@ from all.experiments import ParallelEnvExperiment
 from all.nn import RLNetwork, NoisyFactorizedLinear
 
 from env_utils import make_vec_env
-from buffers import ParallelNStepBuffer, ParallelReservoirBuffer
+from buffers import ParallelNStepBuffer, ParallelReservoirBuffer, CompressedPrioritizedReplayBuffer
 from .parallel_rainbow import ParallelRainbow, ParallelRainbowPreset
 from models import our_nat_features
 
@@ -215,12 +215,13 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
         replay_buffer = ParallelNStepBuffer(
             self.hyperparameters['n_steps'],
             self.hyperparameters['discount_factor'],
-            PrioritizedReplayBuffer(
+            CompressedPrioritizedReplayBuffer(
                 self.hyperparameters['replay_buffer_size'],
                 alpha=self.hyperparameters['alpha'],
                 beta=self.hyperparameters['beta'],
                 device=self.device,
-                store_device="cpu"
+                store_device="cpu",
+                compress=False
             ),
             n_envs=self.n_envs,
         )
@@ -238,6 +239,7 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
             self.hyperparameters['reservoir_buffer_size'],
             device=self.device,
             store_device="cpu",
+            compress=True
         )
 
         return DeepmindAtariBody(

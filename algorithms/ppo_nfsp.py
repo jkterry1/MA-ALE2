@@ -192,6 +192,7 @@ class PPONFSPPreset(PPOPreset):
             self.hyperparameters['reservoir_buffer_size'],
             device=self.device,
             store_device="cpu",
+            compress=True,
         )
 
         return DeepmindAtariBody(
