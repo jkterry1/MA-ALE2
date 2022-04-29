@@ -57,6 +57,9 @@ def nature_features(frames=4):
         nn.ReLU(),
     )
 
+def our_nat_features(channels=10):
+    return nature_features(frames=channels)
+
 
 def nature_value_head():
     return nn.Linear(512, 1)

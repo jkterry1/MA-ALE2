@@ -6,3 +6,4 @@ events.out.tfcache*
 .idea/
 runs/
 checkpoint/
+raytmp/

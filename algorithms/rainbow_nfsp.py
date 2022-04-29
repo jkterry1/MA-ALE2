@@ -46,6 +46,8 @@ from env_utils import make_env
 from typing import Tuple
 from torch import TensorType
 
+from buffers import ReservoirBuffer
+
 
 
 default_hyperparameters = {
@@ -77,6 +79,7 @@ default_hyperparameters = {
     "sigma": 0.5,
     # NFSP
     "anticipatory": 0.1,
+    "reservoir_buffer_size": 200000,
     # Model construction
     "model_constructor": nature_rainbow,
 }
@@ -314,7 +317,7 @@ class NFSPRainbowPreset(Preset):
             writer=writer,
         )
         reservoir_buffer = ReservoirBuffer(
-            self.hyperparameters['replay_buffer_size'],
+            self.hyperparameters['reservoir_buffer_size'],
             device=self.device,
             store_device="cpu",
         )
@@ -417,45 +420,3 @@ def make_nfsp_rainbow(env_name, device, replay_buffer_size, **kwargs):
         quiet=quiet,
     )
     return experiment, preset, multi_agent_env
-
-#############################################################################################
-
-Transition = collections.namedtuple('Transition', 'info_state action_probs')
-
-from all.memory.replay_buffer import ExperienceReplayBuffer
-class ReservoirBuffer(ExperienceReplayBuffer):
-    ''' Allows uniform sampling over a stream of data.
-
-    This class supports the storage of arbitrary elements, such as observation
-    tensors, integer actions, etc.
-
-    See https://en.wikipedia.org/wiki/Reservoir_sampling for more details.
-    '''
-
-    def __init__(self, size, device='cpu', store_device=None):
-        super().__init__(size, device=device, store_device=store_device)
-        self._add_calls = 0
-
-    def _add(self, sample):
-        """Potentially adds `element` to the reservoir buffer."""
-        if len(self.buffer) < self.capacity:
-            self.buffer.append(sample)
-        else:
-            idx = np.random.randint(0, self._add_calls + 1)
-            if idx < self.capacity:
-                self.buffer[idx] = sample
-        self._add_calls += 1
-
-    def store(self, state, action, next_state):
-        if state is not None and not state.done:
-            state = state.to(self.store_device)
-            next_state = next_state.to(self.store_device)
-            self._add((state, action, next_state))
-
-    def sample(self, num_samples: int):
-        """Returns `num_samples` uniformly sampled from the buffer."""
-        if len(self.buffer) < num_samples:
-            raise ValueError(f"{num_samples} elements could not be sampled from size {len(self.buffer)}")
-        minibatch = random.sample(self.buffer, num_samples)
-        return self._reshape(minibatch, torch.ones(num_samples, device=self.device))
-
