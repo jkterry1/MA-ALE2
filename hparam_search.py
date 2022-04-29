@@ -209,7 +209,7 @@ def objective_all(trial):
     # Then it will start running from trial 3, 
     # and the status immediately changed to running
 
-    status_file = "checkpoint/%s/train_status.csv"%(args.trainer_type)
+    status_file = "checkpoint/%s/train_status.pkl"%(args.trainer_type)
     status = pd.read_pickle(status_file)
     if status.loc[status['status']=='stopped'].empty:
         N_TRIALS = trial.number
