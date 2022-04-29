@@ -14,7 +14,11 @@ from optuna.trial import TrialState
 import time
 import ray
 from all.experiments import MultiagentEnvExperiment
-from param_samplers import sample_rainbow_params, sample_nfsp_rainbow_params, sample_ppo_params, sample_nfsp_ppo_params
+from param_samplers import (
+    sample_rainbow_params, sample_nfsp_rainbow_params,
+    sample_ppo_params, sample_nfsp_ppo_params
+)
+import signal
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -53,6 +57,21 @@ if args.device == 'cuda':
 SQL_ADDRESS = f"mysql://{args.db_user}:{args.db_password}@35.194.57.226/{args.db_name}"
 
 env_list = args.envs.split(',')
+
+
+def sig_handler(signum, frame):
+    """handler for OS-level signals, like SIGTERM, etc."""
+    status_file = "checkpoint/%s/train_status.pkl" % (args.trainer_type)
+    if not os.path.isfile(status_file):
+        os.makedirs(status_file)
+    status = pd.read_pickle(status_file)
+    status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
+    pd.to_pickle(status, status_file)
+    raise OSError
+
+signal.signal(signal.SIGINT, sig_handler)
+signal.signal(signal.SIGTERM, sig_handler)
+signal.signal(signal.SIGKILL, sig_handler)
 
 
 
