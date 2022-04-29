@@ -70,7 +70,6 @@ def sig_handler(signum, frame):
 
 signal.signal(signal.SIGINT, sig_handler)
 signal.signal(signal.SIGTERM, sig_handler)
-signal.signal(signal.SIGKILL, sig_handler)
 
 
 
