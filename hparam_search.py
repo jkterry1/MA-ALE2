@@ -67,7 +67,6 @@ def sig_handler(signum, frame):
     status = pd.read_pickle(status_file)
     status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
     pd.to_pickle(status, status_file)
-    raise OSError
 
 signal.signal(signal.SIGINT, sig_handler)
 signal.signal(signal.SIGTERM, sig_handler)
