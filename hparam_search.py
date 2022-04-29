@@ -7,13 +7,18 @@ import torch
 from algorithms.rainbow_nfsp import save_name
 import numpy as np
 import random
+import pandas as pd
 from experiment_train import trainer_types
 import optuna
 from optuna.trial import TrialState
 import time
 import ray
 from all.experiments import MultiagentEnvExperiment
-from param_samplers import sample_rainbow_params, sample_nfsp_rainbow_params, sample_ppo_params, sample_nfsp_ppo_params
+from param_samplers import (
+    sample_rainbow_params, sample_nfsp_rainbow_params,
+    sample_ppo_params, sample_nfsp_ppo_params
+)
+import signal
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -39,7 +44,7 @@ parser.add_argument("--db-password", type=str)
 parser.add_argument("--db-user", type=str, default='database')
 parser.add_argument("--max-trials", type=int, default=100,
                     help="number of trials for EACH environment, or how many times hparams are sampled.")
-parser.add_argument("--from-ckpt", action="store_true",
+parser.add_argument("--no-ckpt", action="store_true",
                     help="learning start from previous trained checkpoints")
 args = parser.parse_args()
 args.device = 'cuda' if args.num_gpus > 0 else 'cpu'
@@ -52,6 +57,21 @@ if args.device == 'cuda':
 SQL_ADDRESS = f"mysql://{args.db_user}:{args.db_password}@35.194.57.226/{args.db_name}"
 
 env_list = args.envs.split(',')
+
+
+def sig_handler(signum, frame):
+    """handler for OS-level signals, like SIGTERM, etc."""
+    status_file = "checkpoint/%s/train_status.pkl" % (args.trainer_type)
+    if not os.path.isfile(status_file):
+        os.makedirs(status_file)
+    status = pd.read_pickle(status_file)
+    status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
+    pd.to_pickle(status, status_file)
+    raise OSError
+
+signal.signal(signal.SIGINT, sig_handler)
+signal.signal(signal.SIGTERM, sig_handler)
+signal.signal(signal.SIGKILL, sig_handler)
 
 
 
@@ -116,9 +136,9 @@ def train(hparams, seed, trial, env_id):
 
     # Start from the last preset
     frame_start = 0
-    if args.from_ckpt:
-        if len(os.listdir(save_folder)) != 0:
-            frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
+    if not args.no_ckpt and len(os.listdir(save_folder)) != 0:
+        frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
+        if frame_start < num_frames_train:
             preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
 
     if not is_ma_experiment:
@@ -186,25 +206,6 @@ def train(hparams, seed, trial, env_id):
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
 
-    # if ckpt is already fully existed
-    if frame_start >= num_frames_train:
-        eval_returns = experiment.test(episodes=args.num_eval_episodes)
-        if is_ma_experiment: # MultiAgentEnvExperiment returns dict, but evals are always one key
-            assert len(eval_returns) == 1
-            eval_returns = list(eval_returns.values())[0]
-            experiment._save_model()  # not implemented in Parallel yet
-        # for aid, returns in eval_returns.items():
-        mean_return = np.mean(eval_returns)
-        norm_return = normalize_score(mean_return, env_id=env_id)
-        norm_eval_returns.append(norm_return)
-        avg_norm_return = np.mean(norm_eval_returns)
-
-        # Handle pruning based on the intermediate value.
-        trial.report(value=avg_norm_return, step=experiment._frame + frames_per_save)
-
-    # clean up?
-    del experiment, preset, env
-
     return avg_norm_return
 
 
@@ -212,11 +213,50 @@ N_TRIALS = -1
 def objective_all(trial):
     """Get hyperparams for trial"""
     global N_TRIALS
-    N_TRIALS = trial.number
 
-    hparams = sampler_fn(trial)
+    ##### status file example #####
 
-    seed = trial.number
+    # trial  |  hparams   |  seed  |  status  
+    # --------------------------------------
+    # 0      |  dict(...) |  0     |  finished
+    # 1      |  dict(...) |  1     |  finished
+    # 2      |  dict(...) |  2     |  running
+    # 3      |  dict(...) |  3     |  stopped
+    # 4      |  dict(...) |  4     |  stopped
+    # 5      |  dict(...) |  5     |  stopped
+
+    # Then it will start running from trial 3, 
+    # and the status immediately changed to running
+
+    status_file = "checkpoint/%s/train_status.pkl"%(args.trainer_type)
+    if os.path.exists(status_file):
+        status = pd.read_pickle(status_file)
+    else:
+        status = pd.DataFrame({'trial':[],'hparams':[],'seed':[],'status':[]})
+        status['trial'] = status['trial'].astype(int)
+        status['seed'] = status['trial'].astype(int)
+    if status.loc[status['status'] == 'stopped'].empty:
+        if len(status) == 0:
+            N_TRIALS = trial.number
+        else:
+            N_TRIALS = status.sort_values(by=['trial'], ascending=False).at[0, 'trial'] + 1
+
+        hparams = sampler_fn(trial)
+        seed = N_TRIALS
+        status = status.append([{'status': 'running',
+                                 'trial': trial.number,
+                                 'hparams': hparams,
+                                 'seed': seed}])
+        pd.to_pickle(status, status_file)
+    else:
+        start = status.loc[status['status']=='stopped'].sort_values(by=['trial']).head(1)
+        N_TRIALS, hparams, seed = start['trial'].item(),\
+                                    start['hparams'].item(),\
+                                    start['seed'].item()
+        status.loc[status['trial']==N_TRIALS, 'status']='running'
+        pd.to_pickle(status, status_file)
+        
+    
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
