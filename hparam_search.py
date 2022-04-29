@@ -210,22 +210,31 @@ def objective_all(trial):
     # and the status immediately changed to running
 
     status_file = "checkpoint/%s/train_status.pkl"%(args.trainer_type)
-    status = pd.read_pickle(status_file)
-    if status.loc[status['status']=='stopped'].empty:
-        N_TRIALS = trial.number
+    if os.path.exists(status_file):
+        status = pd.read_pickle(status_file)
+    else:
+        status = pd.DataFrame({'trial':[],'hparams':[],'seed':[],'status':[]})
+        status['trial'] = status['trial'].astype(int)
+        status['seed'] = status['trial'].astype(int)
+    if status.loc[status['status'] == 'stopped'].empty:
+        if len(status) == 0:
+            N_TRIALS = trial.number
+        else:
+            N_TRIALS = status.sort_values(by=['trial'], ascending=False).at[0, 'trial'] + 1
+
         hparams = sampler_fn(trial)
-        seed = trial.number
-        status = status.append([{'status':'running',
-                                'trial':trial.number,
-                                'hparams': hparams,
-                                'seed': seed}])
+        seed = N_TRIALS
+        status = status.append([{'status': 'running',
+                                 'trial': trial.number,
+                                 'hparams': hparams,
+                                 'seed': seed}])
         pd.to_pickle(status, status_file)
     else:
         start = status.loc[status['status']=='stopped'].sort_values(by=['trial']).head(1)
         N_TRIALS, hparams, seed = start['trial'].item(),\
                                     start['hparams'].item(),\
                                     start['seed'].item()
-        status.loc[status['trial']==N_TRIALS]['status']='running'
+        status.loc[status['trial']==N_TRIALS, 'status']='running'
         pd.to_pickle(status, status_file)
         
     
