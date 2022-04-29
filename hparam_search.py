@@ -62,13 +62,12 @@ env_list = args.envs.split(',')
 def sig_handler(signum, frame):
     """handler for OS-level signals, like SIGTERM, etc."""
     status_file = "checkpoint/%s/train_status.pkl" % (args.trainer_type)
-    if not os.path.isfile(status_file):
-        os.makedirs(status_file)
-    status = pd.read_pickle(status_file)
-    status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
-    pd.to_pickle(status, status_file)
+    status_file = os.path.abspath(status_file)
+    if os.path.isfile(status_file):
+        status = pd.read_pickle(status_file)
+        status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
+        pd.to_pickle(status, status_file)
 
-signal.signal(signal.SIGINT, sig_handler)
 signal.signal(signal.SIGTERM, sig_handler)
 
 
@@ -227,6 +226,7 @@ def objective_all(trial):
     # and the status immediately changed to running
 
     status_file = "checkpoint/%s/train_status.pkl"%(args.trainer_type)
+    status_file = os.path.abspath(status_file)
     if os.path.exists(status_file):
         status = pd.read_pickle(status_file)
     else:
