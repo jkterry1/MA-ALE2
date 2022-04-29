@@ -7,6 +7,7 @@ import torch
 from algorithms.rainbow_nfsp import save_name
 import numpy as np
 import random
+import pandas as pd
 from experiment_train import trainer_types
 import optuna
 from optuna.trial import TrialState
@@ -193,11 +194,41 @@ N_TRIALS = -1
 def objective_all(trial):
     """Get hyperparams for trial"""
     global N_TRIALS
-    N_TRIALS = trial.number
 
-    hparams = sampler_fn(trial)
+    ##### status file example #####
 
-    seed = trial.number
+    # trial  |  hparams   |  seed  |  status  
+    # --------------------------------------
+    # 0      |  dict(...) |  0     |  finished
+    # 1      |  dict(...) |  1     |  finished
+    # 2      |  dict(...) |  2     |  running
+    # 3      |  dict(...) |  3     |  stopped
+    # 4      |  dict(...) |  4     |  stopped
+    # 5      |  dict(...) |  5     |  stopped
+
+    # Then it will start running from trial 3, 
+    # and the status immediately changed to running
+
+    status_file = "checkpoint/%s/train_status.pkl"%(args.trainer_type)
+    status = pd.read_pickle(status_file)
+    if status.loc[status['status']=='stopped'].empty:
+        N_TRIALS = trial.number
+        hparams = sampler_fn(trial)
+        seed = trial.number
+        status = status.append([{'status':'running',
+                                'trial':trial.number,
+                                'hparams': hparams,
+                                'seed': seed}])
+        pd.to_pickle(status, status_file)
+    else:
+        start = status.loc[status['status']=='stopped'].sort_values(by=['trial']).head(1)
+        N_TRIALS, hparams, seed = start['trial'].item(),\
+                                    start['hparams'].item(),\
+                                    start['seed'].item()
+        status.loc[status['trial']==N_TRIALS]['status']='running'
+        pd.to_pickle(status, status_file)
+        
+    
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
