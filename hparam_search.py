@@ -61,9 +61,9 @@ env_list = args.envs.split(',')
 
 def sig_handler(signum, frame):
     """handler for OS-level signals, like SIGTERM, etc."""
-    status_file = "checkpoint/%s/train_status.pkl" % (args.trainer_type)
-    status_file = os.path.abspath(status_file)
-    if os.path.isfile(status_file):
+    trainer_dir = f"checkpoint/{args.trainer_type}"
+    status_file = f"{trainer_dir}/train_status.pkl"
+    if os.path.exists(status_file):
         status = pd.read_pickle(status_file)
         status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
         pd.to_pickle(status, status_file)
@@ -225,8 +225,8 @@ def objective_all(trial):
     # Then it will start running from trial 3, 
     # and the status immediately changed to running
 
-    status_file = "checkpoint/%s/train_status.pkl"%(args.trainer_type)
-    status_file = os.path.abspath(status_file)
+    trainer_dir = f"checkpoint/{args.trainer_type}"
+    status_file = f"{trainer_dir}/train_status.pkl"
     if os.path.exists(status_file):
         status = pd.read_pickle(status_file)
     else:
@@ -245,6 +245,7 @@ def objective_all(trial):
                                  'trial': trial.number,
                                  'hparams': hparams,
                                  'seed': seed}])
+        os.makedirs(trainer_dir, exist_ok=True)
         pd.to_pickle(status, status_file)
     else:
         start = status.loc[status['status']=='stopped'].sort_values(by=['trial']).head(1)
@@ -252,6 +253,7 @@ def objective_all(trial):
                                     start['hparams'].item(),\
                                     start['seed'].item()
         status.loc[status['trial']==N_TRIALS, 'status']='running'
+        os.makedirs(trainer_dir, exist_ok=True)
         pd.to_pickle(status, status_file)
         
     
