@@ -103,8 +103,12 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     builtin_score = builtin_rewards[env_id]['mean_rewards']['first']
     return (score - builtin_score) / (rand_score - builtin_score)
 
+gpus_per_worker = args.num_gpus / len(env_list)
+if gpus_per_worker > 0.5 and len(env_list) > 1:
+    # don't split a single job across two gpus (e.g., 2/3 gpus each)
+    gpus_per_worker = min(gpus_per_worker, 0.5)
 
-@ray.remote(num_gpus=args.num_gpus/len(env_list), max_calls=len(env_list))
+@ray.remote(num_gpus=gpus_per_worker, max_calls=len(env_list))
 def train(hparams, seed, trial, env_id):
     # set all hparams sampled from the trial
     buffer_size = hparams.get('replay_buffer_size', None)
