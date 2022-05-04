@@ -237,7 +237,7 @@ def objective_all(trial):
         if len(status) == 0:
             N_TRIALS = trial.number
         else:
-            N_TRIALS = status.sort_values(by=['trial'], ascending=False).at[0, 'trial'] + 1
+            N_TRIALS = status.sort_values(by=['trial'], ascending=False).at[0, 'trial'].head(1).item() + 1
 
         hparams = sampler_fn(trial)
         seed = N_TRIALS
