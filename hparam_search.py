@@ -14,7 +14,7 @@ import time
 import ray
 from all.experiments import MultiagentEnvExperiment
 from param_samplers import sample_rainbow_params, sample_nfsp_rainbow_params, sample_ppo_params, sample_nfsp_ppo_params
-
+from datetime import datetime
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
 
@@ -148,6 +148,9 @@ def train(hparams, seed, trial, env_id):
                         returns[i] = 0
             experiment._episode += episodes_completed
 
+            now_str = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            print(f"[{now_str}] ENV={env_id}, episode={experiment._episode}, frame={experiment._frame}")
+
             if (experiment._frame % frames_per_save) < num_envs:
                 # time to save and eval
                 torch.save(preset, f"{save_folder}/{experiment._frame:09d}.pt")
@@ -161,6 +164,10 @@ def train(hparams, seed, trial, env_id):
                 norm_return = normalize_score(mean_return, env_id=env_id)
                 norm_eval_returns.append(norm_return)
                 avg_norm_return = np.mean(norm_eval_returns)
+                
+                #debugging 
+                now = datetime.now()
+                print(f"[{now.strftime('%d/%m/%Y %H:%M:%S')}] ENV={env_id} NORM_RETURN={avg_norm_return}")
 
                 # Handle pruning based on the intermediate value.
                 trial.report(value=avg_norm_return, step=experiment._frame)
@@ -181,6 +188,10 @@ def train(hparams, seed, trial, env_id):
             norm_eval_returns.append(norm_return)
             avg_norm_return = np.mean(norm_eval_returns)
 
+            #debugging 
+            now = datetime.now()
+            print(f"[{now.strftime('%d/%m/%Y %H:%M:%S')}] ENV={env_id} NORM_RETURN={avg_norm_return}")
+            
             # Handle pruning based on the intermediate value.
             trial.report(value=avg_norm_return, step=frame + frames_per_save)
             if trial.should_prune():
