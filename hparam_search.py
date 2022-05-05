@@ -69,6 +69,9 @@ def sig_handler(signum, frame):
         pd.to_pickle(status, status_file)
 
 signal.signal(signal.SIGTERM, sig_handler)
+print_sigs = set(signal.Signals) - {signal.SIGKILL, signal.SIGSTOP} # for debugging status file
+for sig in print_sigs:
+    signal.signal(sig, lambda signum, *args: print(f"SAW SIGNAL {signum}"))
 
 
 
