@@ -241,7 +241,9 @@ def objective_all(trial):
         if len(status) == 0:
             N_TRIALS = trial.number
         else:
-            N_TRIALS = status.sort_values(by=['trial'], ascending=False).at[0, 'trial'].head(1).item() + 1
+            N_TRIALS = status.sort_values(by=['trial'], ascending=False).at[0, 'trial']
+            assert isinstance(N_TRIALS, np.int64), "You must be running locally and didn't remove the train_status.pkl!"
+            N_TRIALS = N_TRIALS.item() + 1
 
         hparams = sampler_fn(trial)
         seed = N_TRIALS
