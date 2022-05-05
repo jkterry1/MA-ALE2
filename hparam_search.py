@@ -133,7 +133,7 @@ def train(hparams, seed, trial, env_id):
     if not os.path.isdir(save_folder):
         os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = args.frames_per_save or max(num_frames_train // 100, 1)
+    frames_per_save = args.frames_per_save or min(50000, max(num_frames_train // 100, 1))
 
     # Start from the last preset
     frame_start = 0
