@@ -100,7 +100,8 @@ def get_base_builtin_env(env_name, parallel=False, full_action_space=True):
     name_no_version = env_name.rsplit("_", 1)[0]
     if parallel:
         env = ParallelAtariEnv(game=name_no_version, num_players=1,
-                               obs_type='grayscale_image', full_action_space=full_action_space)
+                               obs_type='grayscale_image', full_action_space=full_action_space, 
+                               max_cycles=10000)
     else:
         env = BaseAtariEnv(game=name_no_version, num_players=1,
                            obs_type='grayscale_image', full_action_space=full_action_space)
