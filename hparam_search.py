@@ -234,14 +234,14 @@ def objective_all(trial):
     if os.path.exists(status_file):
         status = pd.read_pickle(status_file)
     else:
-        status = pd.DataFrame({'trial':[],'hparams':[],'seed':[],'status':[]})
+        status = pd.DataFrame({'trial':[],'hparams':[],'seed':[],'status':[]}).set_index('trial')
         status['trial'] = status['trial'].astype(int)
         status['seed'] = status['trial'].astype(int)
     if status.loc[status['status'] == 'stopped'].empty:
         if len(status) == 0:
             N_TRIALS = trial.number
         else:
-            N_TRIALS = status.sort_values(by=['trial'], ascending=False).at[0, 'trial']
+            N_TRIALS = status.sort_values(by=['trial'], ascending=False).head(1).index.item()
             assert isinstance(N_TRIALS, np.int64), "You must be running locally and didn't remove the train_status.pkl!"
             N_TRIALS = N_TRIALS.item() + 1
 
