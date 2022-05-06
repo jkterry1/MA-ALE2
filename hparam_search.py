@@ -59,22 +59,6 @@ SQL_ADDRESS = f"mysql://{args.db_user}:{args.db_password}@35.194.57.226/{args.db
 env_list = args.envs.split(',')
 
 
-def sig_handler(signum, frame):
-    """handler for OS-level signals, like SIGTERM, etc."""
-    trainer_dir = f"checkpoint/{args.trainer_type}"
-    status_file = f"{trainer_dir}/train_status.pkl"
-    if os.path.exists(status_file):
-        status = pd.read_pickle(status_file)
-        status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
-        pd.to_pickle(status, status_file)
-
-signal.signal(signal.SIGTERM, sig_handler)
-print_sigs = set(signal.Signals) - {signal.SIGKILL, signal.SIGSTOP} # for debugging status file
-for sig in print_sigs:
-    signal.signal(sig, lambda signum, *args: print(f"SAW SIGNAL {signum}"))
-
-
-
 with open("plot_data/builtin_env_rewards.json", "r") as fd:
     builtin_rewards = json.load(fd)
 with open("plot_data/rand_rewards.json", "r") as fd:
@@ -144,6 +128,8 @@ def train(hparams, seed, trial, env_id):
         frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
         if frame_start < num_frames_train:
             preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
+            experiment._preset = preset
+            experiment._agent = preset.agent(writer=experiment._writer, train_steps=float(np.inf))
 
     if not is_ma_experiment:
         num_envs = int(experiment._env.num_envs)
@@ -237,31 +223,31 @@ def objective_all(trial):
     if os.path.exists(status_file):
         status = pd.read_pickle(status_file)
     else:
-        status = pd.DataFrame({'trial':[],'hparams':[],'seed':[],'status':[]}).set_index('trial')
-        status['trial'] = status['trial'].astype(int)
-        status['seed'] = status['trial'].astype(int)
-    if status.loc[status['status'] == 'stopped'].empty:
-        if len(status) == 0:
-            N_TRIALS = trial.number
-        else:
-            N_TRIALS = status.sort_values(by=['trial'], ascending=False).head(1).index.item()
-            assert isinstance(N_TRIALS, np.int64), "You must be running locally and didn't remove the train_status.pkl!"
-            N_TRIALS = N_TRIALS.item() + 1
+        status = pd.DataFrame({'trial':[],'hparams':[],'seed':[],'status':[]}) # .set_index('trial')
+        status.trial = status.trial.astype(int)
+        status.seed = status.seed.astype(int)
+    if status[status.status == 'stopped'].empty:
+        # no runs to resume; add new row to DF
+        assert status.loc[status.trial == trial.number].empty, \
+            f"You must be running locally and didn't delete {status_file} !"
+
+        N_TRIALS = seed = trial.number
 
         hparams = sampler_fn(trial)
-        seed = N_TRIALS
         status = status.append([{'status': 'running',
                                  'trial': trial.number,
                                  'hparams': hparams,
-                                 'seed': seed}])
+                                 'seed': seed}],
+                               ignore_index=True)  # guarantee unique index
         os.makedirs(trainer_dir, exist_ok=True)
         pd.to_pickle(status, status_file)
     else:
+        # stopped runs; resume
         start = status.loc[status['status']=='stopped'].sort_values(by=['trial']).head(1)
         N_TRIALS, hparams, seed = start['trial'].item(),\
                                     start['hparams'].item(),\
                                     start['seed'].item()
-        status.loc[status['trial']==N_TRIALS, 'status']='running'
+        status.loc[status.trial == N_TRIALS, 'status'] = 'running'
         os.makedirs(trainer_dir, exist_ok=True)
         pd.to_pickle(status, status_file)
         
@@ -270,13 +256,34 @@ def objective_all(trial):
     random.seed(seed)
     torch.manual_seed(seed)
 
+    # Run parallel jobs
     futures = [train.remote(hparams, seed, trial, env_id) for env_id in env_list]
     norm_returns = ray.get(futures)
+
+    # Set run as finished in DF
+    status.loc[status.trial == trial.number, 'status'] = 'finished'
+    pd.to_pickle(status, status_file)
 
     print(hparams)
     print(norm_returns)
 
     return np.mean(norm_returns)
+
+
+def sig_handler(signum, frame):
+    """handler for OS-level signals, like SIGTERM, etc."""
+    trainer_dir = f"checkpoint/{args.trainer_type}"
+    status_file = f"{trainer_dir}/train_status.pkl"
+    if os.path.exists(status_file):
+        status = pd.read_pickle(status_file)
+        status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
+        pd.to_pickle(status, status_file)
+
+signal.signal(signal.SIGTERM, sig_handler)
+print_sigs = set(signal.Signals) - {signal.SIGKILL, signal.SIGSTOP, signal.SIGCHLD,
+                                    signal.SIGTERM, signal.SIGINT} # for debugging status file
+for sig in print_sigs:
+    signal.signal(sig, lambda signum, *args: print(f"SAW SIGNAL {signal.Signals(signum).name}"))
 
 
 if __name__ == "__main__":
