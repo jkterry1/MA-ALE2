@@ -167,13 +167,14 @@ def train(hparams, seed, trial, env_id):
                 eval_returns = experiment.test(episodes=args.num_eval_episodes * n_agents)
                 eval_returns = eval_returns[::n_agents]
 
-                mean_return = np.mean(eval_returns)
-                norm_return = normalize_score(mean_return, env_id=env_id)
-                norm_eval_returns.append(norm_return)
-                avg_norm_return = np.mean(norm_eval_returns)
+                norm_returns = [normalize_score(e_return, env_id=env_id) for e_return in eval_returns]
+                mean_norm_return = np.mean(norm_returns)
+                std_norm_return = np.std(norm_returns)
+
+                experiment._writer.add_summary('norm-returns-test', mean_norm_return, std_norm_return)
 
                 # Handle pruning based on the intermediate value.
-                trial.report(value=avg_norm_return, step=experiment._frame)
+                trial.report(value=mean_norm_return, step=experiment._frame)
                 if trial.should_prune():
                     raise optuna.exceptions.TrialPruned()
     else:
