@@ -28,7 +28,7 @@ parser.add_argument("--num-gpus", type=int, default=1,
 parser.add_argument("--frames", type=int, default=50e6, help="The number of training frames.")
 parser.add_argument("--frames-per-save", type=int, default=None)
 parser.add_argument("--trainer-type", type=str, default="nfsp_rainbow")
-parser.add_argument("--num-eval-episodes", type=int, default=20,
+parser.add_argument("--num-eval-episodes", type=int, default=8,
                     help="how many evaluation episodes to run per training epoch")
 parser.add_argument("--local", action='store_true', default=False,
                     help="create study locally (no SQL database)")
@@ -101,7 +101,7 @@ def train(hparams, seed, trial, env_id):
     buffer_size = hparams.get('replay_buffer_size', None)
 
     # use non-parallel rainbow nfsp if reservoir buffer is too large for RAM
-    experiment, preset, env = trainer_types[args.trainer_type](
+    experiment, _, _ = trainer_types[args.trainer_type](
         env_id, args.device, buffer_size,
         seed=seed,
         num_frames=args.frames,
@@ -127,21 +127,20 @@ def train(hparams, seed, trial, env_id):
     if not args.no_ckpt and len(os.listdir(save_folder)) != 0:
         frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
         if frame_start < num_frames_train:
-            preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
-            experiment._preset = preset
-            experiment._agent = preset.agent(writer=experiment._writer, train_steps=float(np.inf))
+            experiment._preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
+            # experiment._agent = torch.load(f"{save_folder}/agent.pt")  # fails
 
     if not is_ma_experiment:
         num_envs = int(experiment._env.num_envs)
         returns = np.zeros(num_envs)
-        state_array = env.reset()
+        state_array = experiment._env.reset()
         start_time = time.time()
         completed_frames = 0
         experiment._frame = frame_start
 
         while experiment._frame <= num_frames_train:
             action = experiment._agent.act(state_array)
-            state_array = env.step(action)
+            state_array = experiment._env.step(action)
             experiment._frame += num_envs
             episodes_completed = state_array.done.type(torch.IntTensor).sum().item()
             completed_frames += num_envs
@@ -160,7 +159,8 @@ def train(hparams, seed, trial, env_id):
 
             if (experiment._frame % frames_per_save) < num_envs:
                 # time to save and eval
-                torch.save(preset, f"{save_folder}/{experiment._frame:09d}.pt")
+                torch.save(experiment._preset, f"{save_folder}/{experiment._frame:09d}.pt")
+                # torch.save(deepcopy(experiment._agent), f"{save_folder}/agent.pt")  # fails
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
                 n_agents = 2
@@ -179,7 +179,8 @@ def train(hparams, seed, trial, env_id):
     else:
         for frame in range(frame_start, num_frames_train, frames_per_save):
             experiment.train(frames=frame)
-            torch.save(preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
+            torch.save(experiment._preset, f"{save_folder}/{frame + frames_per_save:09d}.pt")
+            # torch.save(experiment._agent, f"{save_folder}/agent.pt")  # fails
 
             eval_returns = experiment.test(episodes=args.num_eval_episodes)
             assert len(eval_returns) == 1
