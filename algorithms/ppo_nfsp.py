@@ -133,6 +133,13 @@ class PPONFSPAgent(PPO):
 
         return actions
 
+    def get_buffers(self) -> dict:
+        """return all buffers in a dictionary for checkpointing/loading"""
+        return {'reservoir': self._reservoir_buffer}
+
+    def load_buffers(self, buffers_dict):
+        self._reservoir_buffer = buffers_dict['reservoir']
+
 
 class PPONFSPPreset(PPOPreset):
 

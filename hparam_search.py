@@ -19,6 +19,7 @@ from param_samplers import (
     sample_ppo_params, sample_nfsp_ppo_params
 )
 import signal
+from lz4.frame import compress, decompress
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -90,6 +91,13 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     builtin_score = builtin_rewards[env_id]['mean_rewards']['first']
     return (score - builtin_score) / (rand_score - builtin_score)
 
+def find_base_agent(wrapped_agent):
+    """return base agent for saving/loading buffers"""
+    if hasattr(wrapped_agent, 'get_buffers'):
+        return wrapped_agent
+    else:
+        return find_base_agent(wrapped_agent.agent)
+
 gpus_per_worker = args.num_gpus / len(env_list)
 if gpus_per_worker > 0.5 and len(env_list) > 1:
     # don't split a single job across two gpus (e.g., 2/3 gpus each)
@@ -120,15 +128,20 @@ def train(hparams, seed, trial, env_id):
     if not os.path.isdir(save_folder):
         os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = args.frames_per_save or min(50000, max(num_frames_train // 100, 1))
+    frames_per_save = args.frames_per_save or min(250000, max(num_frames_train // 100, 1))
 
     # Start from the last preset
     frame_start = 0
     if not args.no_ckpt and len(os.listdir(save_folder)) != 0:
-        frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)])[-1]
+        frame_start = sorted([int(ckpt.strip('.pt')) for ckpt in os.listdir(save_folder)
+                              if ckpt.endswith('.pt')])[-1]
         if frame_start < num_frames_train:
-            experiment._preset = torch.load(f"{save_folder}/{frame_start:09d}.pt")
-            # experiment._agent = torch.load(f"{save_folder}/agent.pt")  # fails
+            ckpt_path = f"{save_folder}/{frame_start:09d}.pt"
+            print("LOADING FROM CHECKPOINT:", ckpt_path)
+            experiment._preset = torch.load(ckpt_path)
+            with open(f"{save_folder}/buffers.pkl", 'rb') as fd:
+                buffers = dill.loads(decompress(dill.load(fd)))
+            find_base_agent(experiment._agent).load_buffers(buffers)
 
     if not is_ma_experiment:
         num_envs = int(experiment._env.num_envs)
@@ -160,7 +173,11 @@ def train(hparams, seed, trial, env_id):
             if (experiment._frame % frames_per_save) < num_envs:
                 # time to save and eval
                 torch.save(experiment._preset, f"{save_folder}/{experiment._frame:09d}.pt")
-                # torch.save(deepcopy(experiment._agent), f"{save_folder}/agent.pt")  # fails
+                buffers = find_base_agent(experiment._agent).get_buffers()
+                before = time.time()
+                with open(f"{save_folder}/buffers.pkl", 'wb') as fd:
+                    dill.dump(compress(dill.dumps(buffers)), fd)
+                print(f"TOOK {time.time() - before} SECONDS TO SAVE BUFFERS")
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
                 n_agents = 2
@@ -274,6 +291,7 @@ def objective_all(trial):
 
 def sig_handler(signum, frame):
     """handler for OS-level signals, like SIGTERM, etc."""
+    print(f"SAW SIGNAL {signal.Signals(signum).name}")
     trainer_dir = f"checkpoint/{args.trainer_type}"
     status_file = f"{trainer_dir}/train_status.pkl"
     if os.path.exists(status_file):
@@ -282,6 +300,7 @@ def sig_handler(signum, frame):
         pd.to_pickle(status, status_file)
 
 signal.signal(signal.SIGTERM, sig_handler)
+signal.signal(signal.SIGINT, sig_handler)
 print_sigs = set(signal.Signals) - {signal.SIGKILL, signal.SIGSTOP, signal.SIGCHLD,
                                     signal.SIGTERM, signal.SIGINT} # for debugging status file
 for sig in print_sigs:

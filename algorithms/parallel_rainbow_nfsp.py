@@ -167,6 +167,16 @@ class ParallelRainbowNFSP(ParallelRainbow):
 
         return actions
 
+    def get_buffers(self) -> dict:
+        """return all buffers in a dictionary for checkpointing/loading"""
+        return {'replay': self.replay_buffer,
+                'reservoir': self._reservoir_buffer}
+
+    def load_buffers(self, buffers_dict):
+        self.replay_buffer = buffers_dict['replay']
+        self._reservoir_buffer = buffers_dict['reservoir']
+
+
 class ParallelRainbowTestAgent(ParallelAgent):
     def __init__(self, q_dist, avg_policy, n_actions, exploration=0.):
         self.q_dist = q_dist

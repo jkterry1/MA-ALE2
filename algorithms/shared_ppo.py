@@ -20,6 +20,15 @@ def nat_features(channels=10):
     return nature_features(channels)
 
 
+class PPOAgent(PPO):
+
+    def get_buffers(self) -> dict:
+        return {}
+
+    def load_buffers(self, buffers_dict):
+        return
+
+
 class PPOPreset(atari.PPOAtariPreset):
 
     def agent(self, writer=DummyWriter(), train_steps=float('inf')):
@@ -59,7 +68,7 @@ class PPOPreset(atari.PPOAtariPreset):
         )
 
         return DeepmindAtariBody(
-            PPO(
+            PPOAgent(
                 features,
                 v,
                 policy,

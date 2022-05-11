@@ -171,6 +171,14 @@ class ParallelRainbow(ParallelAgent):
         log_target_dist = torch.log(torch.clamp(target_dist, min=self.eps))
         return (target_dist * (log_target_dist - log_dist)).sum(dim=-1)
 
+    def get_buffers(self) -> dict:
+        """return all buffers in a dictionary for checkpointing/loading"""
+        return {'replay': self.replay_buffer}
+
+    def load_buffers(self, buffers_dict):
+        self.replay_buffer = buffers_dict['replay']
+
+
 class ParallelRainbowTestAgent(ParallelAgent):
     def __init__(self, q_dist, n_actions, exploration=0.):
         self.q_dist = q_dist
