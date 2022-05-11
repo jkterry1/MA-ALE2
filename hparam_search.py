@@ -187,9 +187,10 @@ def train(hparams, seed, trial, env_id):
                 #     mode='w',
                 #     compression='lzf',
                 # )
-                with open(f"{save_folder}/buffers.hkl", 'wb') as fd:
-                    pickle.dumps(find_base_agent(experiment._agent).get_buffers(),
-                                 protocol=4)
+                with open(f"{save_folder}/buffers.pkl", 'wb') as fd:
+                    pickle.dump(find_base_agent(experiment._agent).get_buffers(),
+                                fd,
+                                protocol=4)
                 print(f"TOOK {time.time() - before} SECONDS TO SAVE BUFFERS")
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
