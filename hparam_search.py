@@ -142,8 +142,8 @@ def train(hparams, seed, trial, env_id):
             print("LOADING FROM CHECKPOINT:", ckpt_path)
             experiment._preset = torch.load(ckpt_path)
             with open(f"{save_folder}/buffers.pkl", 'rb') as fd:
-                buffers = cpickle.load(fd)
-            find_base_agent(experiment._agent).load_buffers(buffers)
+                find_base_agent(experiment._agent).load_buffers( cpickle.load(fd) )
+
 
     if not is_ma_experiment:
         num_envs = int(experiment._env.num_envs)
