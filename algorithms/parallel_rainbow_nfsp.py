@@ -229,7 +229,7 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
                 beta=self.hyperparameters['beta'],
                 device=self.device,
                 store_device="cpu",
-                compress=False
+                compress=True
             ),
             n_envs=self.n_envs,
         )
