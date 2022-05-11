@@ -22,10 +22,10 @@ def nat_features(channels=10):
 
 class PPOAgent(PPO):
 
-    def get_buffers(self) -> dict:
-        return {}
+    def get_buffers(self) -> tuple:
+        return ()
 
-    def load_buffers(self, buffers_dict):
+    def load_buffers(self, buffers: tuple):
         return
 
 

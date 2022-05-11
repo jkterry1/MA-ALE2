@@ -21,7 +21,7 @@ from param_samplers import (
     sample_ppo_params, sample_nfsp_ppo_params
 )
 import signal
-import _pickle as cpickle
+import hickle
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -141,8 +141,9 @@ def train(hparams, seed, trial, env_id):
             ckpt_path = f"{save_folder}/{frame_start:09d}.pt"
             print("LOADING FROM CHECKPOINT:", ckpt_path)
             experiment._preset = torch.load(ckpt_path)
-            with open(f"{save_folder}/buffers.pkl", 'rb') as fd:
-                find_base_agent(experiment._agent).load_buffers( cpickle.load(fd) )
+            find_base_agent(experiment._agent).load_buffers(
+                hickle.load(f"{save_folder}/buffers.hkl", safe=False)
+            )
 
 
     if not is_ma_experiment:
@@ -175,10 +176,14 @@ def train(hparams, seed, trial, env_id):
             if (experiment._frame % frames_per_save) < num_envs:
                 # time to save and eval
                 torch.save(experiment._preset, f"{save_folder}/{experiment._frame:09d}.pt")
-                buffers = find_base_agent(experiment._agent).get_buffers()
+                subprocess.run(["free"])
                 before = time.time()
-                with open(f"{save_folder}/buffers.pkl", 'wb') as fd:
-                    cpickle.dump(buffers, fd, protocol=2)
+                hickle.dump(
+                    find_base_agent(experiment._agent).get_buffers(),
+                    f"{save_folder}/buffers.hkl",
+                    mode='w',
+                    compression='lzf',
+                )
                 print(f"TOOK {time.time() - before} SECONDS TO SAVE BUFFERS")
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
