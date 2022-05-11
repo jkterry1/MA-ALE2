@@ -3,6 +3,8 @@ import dill
 import json
 import argparse
 import os
+
+import sqlalchemy.exc
 import torch
 from algorithms.rainbow_nfsp import save_name
 import numpy as np
@@ -123,7 +125,7 @@ def train(hparams, seed, trial, env_id):
 
     save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, buffer_size, args.frames, seed)
     norm_eval_returns = []
-    norm_return, avg_norm_return = None, None
+    norm_return, mean_norm_return = None, None
 
     if not os.path.isdir(save_folder):
         os.makedirs(save_folder)
@@ -191,9 +193,13 @@ def train(hparams, seed, trial, env_id):
                 experiment._writer.add_summary('norm-returns-test', mean_norm_return, std_norm_return)
 
                 # Handle pruning based on the intermediate value.
-                trial.report(value=mean_norm_return, step=experiment._frame)
-                if trial.should_prune():
-                    raise optuna.exceptions.TrialPruned()
+                try:
+                    trial.report(value=mean_norm_return, step=experiment._frame)
+                    if trial.should_prune():
+                        raise optuna.exceptions.TrialPruned()
+                except sqlalchemy.exc.OperationalError:
+                    print(f"CAUGHT SQL CONNECTION ERROR DURING REPORT/PRUNE: \n"
+                          f"Couldn't connect to RDB at frame {experiment._frame}")
     else:
         for frame in range(frame_start, num_frames_train, frames_per_save):
             experiment.train(frames=frame)
@@ -208,14 +214,14 @@ def train(hparams, seed, trial, env_id):
             mean_return = np.mean(eval_returns)
             norm_return = normalize_score(mean_return, env_id=env_id)
             norm_eval_returns.append(norm_return)
-            avg_norm_return = np.mean(norm_eval_returns)
+            mean_norm_return = np.mean(norm_eval_returns)
 
             # Handle pruning based on the intermediate value.
-            trial.report(value=avg_norm_return, step=frame + frames_per_save)
+            trial.report(value=mean_norm_return, step=frame + frames_per_save)
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
 
-    return avg_norm_return
+    return mean_norm_return
 
 
 N_TRIALS = -1
