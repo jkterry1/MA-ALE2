@@ -21,7 +21,7 @@ from param_samplers import (
     sample_ppo_params, sample_nfsp_ppo_params
 )
 import signal
-from lz4.frame import compress, decompress
+import _pickle as cpickle
 
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -142,7 +142,7 @@ def train(hparams, seed, trial, env_id):
             print("LOADING FROM CHECKPOINT:", ckpt_path)
             experiment._preset = torch.load(ckpt_path)
             with open(f"{save_folder}/buffers.pkl", 'rb') as fd:
-                buffers = dill.loads(decompress(dill.load(fd)))
+                buffers = cpickle.load(fd)
             find_base_agent(experiment._agent).load_buffers(buffers)
 
     if not is_ma_experiment:
@@ -178,7 +178,7 @@ def train(hparams, seed, trial, env_id):
                 buffers = find_base_agent(experiment._agent).get_buffers()
                 before = time.time()
                 with open(f"{save_folder}/buffers.pkl", 'wb') as fd:
-                    dill.dump(compress(dill.dumps(buffers)), fd)
+                    cpickle.dump(buffers, fd, protocol=2)
                 print(f"TOOK {time.time() - before} SECONDS TO SAVE BUFFERS")
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
