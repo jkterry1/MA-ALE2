@@ -1,3 +1,4 @@
+import subprocess
 from typing import Dict, Any
 import dill
 import json
@@ -21,8 +22,8 @@ from param_samplers import (
     sample_ppo_params, sample_nfsp_ppo_params
 )
 import signal
-import hickle
-
+# import hickle
+import pickle
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
 
@@ -141,9 +142,11 @@ def train(hparams, seed, trial, env_id):
             ckpt_path = f"{save_folder}/{frame_start:09d}.pt"
             print("LOADING FROM CHECKPOINT:", ckpt_path)
             experiment._preset = torch.load(ckpt_path)
-            find_base_agent(experiment._agent).load_buffers(
-                hickle.load(f"{save_folder}/buffers.hkl", safe=False)
-            )
+            # find_base_agent(experiment._agent).load_buffers(
+            #     hickle.load(f"{save_folder}/buffers.hkl", safe=False)
+            # )
+            with open(f"{save_folder}/buffers.pkl", 'rb') as fd:
+                find_base_agent(experiment._agent).load_buffers(pickle.load(fd))
 
 
     if not is_ma_experiment:
@@ -178,12 +181,15 @@ def train(hparams, seed, trial, env_id):
                 torch.save(experiment._preset, f"{save_folder}/{experiment._frame:09d}.pt")
                 subprocess.run(["free"])
                 before = time.time()
-                hickle.dump(
-                    find_base_agent(experiment._agent).get_buffers(),
-                    f"{save_folder}/buffers.hkl",
-                    mode='w',
-                    compression='lzf',
-                )
+                # hickle.dump(
+                #     find_base_agent(experiment._agent).get_buffers(),
+                #     f"{save_folder}/buffers.hkl",
+                #     mode='w',
+                #     compression='lzf',
+                # )
+                with open(f"{save_folder}/buffers.hkl", 'wb') as fd:
+                    pickle.dumps(find_base_agent(experiment._agent).get_buffers(),
+                                 protocol=4)
                 print(f"TOOK {time.time() - before} SECONDS TO SAVE BUFFERS")
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
