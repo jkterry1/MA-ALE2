@@ -96,8 +96,9 @@ def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     return (score - builtin_score) / (rand_score - builtin_score)
 
 def find_base_agent(wrapped_agent):
+    from algorithms import Checkpointable
     """return base agent for saving/loading buffers"""
-    if hasattr(wrapped_agent, 'get_buffers'):
+    if isinstance(wrapped_agent, Checkpointable):
         return wrapped_agent
     else:
         return find_base_agent(wrapped_agent.agent)
