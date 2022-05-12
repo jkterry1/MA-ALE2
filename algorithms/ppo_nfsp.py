@@ -20,6 +20,7 @@ from buffers import ParallelReservoirBuffer
 from env_utils import make_vec_env
 from models import our_nat_features
 from .shared_ppo import PPOPreset
+from algorithms import Checkpointable
 
 
 from all.presets.atari.ppo import default_hyperparameters
@@ -32,7 +33,7 @@ default_hyperparameters.update({
 })
 
 
-class PPONFSPAgent(PPO):
+class PPONFSPAgent(PPO, Checkpointable):
 
     def __init__(
             self,
@@ -132,13 +133,6 @@ class PPONFSPAgent(PPO):
         actions = probs.multinomial(1).squeeze()
 
         return actions
-
-    def get_buffers(self) -> tuple:
-        """return all buffers in a dictionary for checkpointing/loading"""
-        return (self._reservoir_buffer,)
-
-    def load_buffers(self, buffers: tuple):
-        self._reservoir_buffer, = buffers
 
 
 class PPONFSPPreset(PPOPreset):

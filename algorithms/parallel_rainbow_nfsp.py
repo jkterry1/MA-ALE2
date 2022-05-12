@@ -20,6 +20,7 @@ from env_utils import make_vec_env
 from buffers import ParallelNStepBuffer, ParallelReservoirBuffer, CompressedPrioritizedReplayBuffer
 from .parallel_rainbow import ParallelRainbow, ParallelRainbowPreset
 from models import our_nat_features
+from algorithms import Checkpointable
 
 
 
@@ -60,7 +61,7 @@ default_hyperparameters = {
 }
 
 
-class ParallelRainbowNFSP(ParallelRainbow):
+class ParallelRainbowNFSP(ParallelRainbow, Checkpointable):
     """NFSP version of ParallelRainbow"""
 
     def __init__(
@@ -166,13 +167,6 @@ class ParallelRainbowNFSP(ParallelRainbow):
         actions = probs.multinomial(1).squeeze()
 
         return actions
-
-    def get_buffers(self) -> tuple:
-        """return all buffers in a dictionary for checkpointing/loading"""
-        return (self.replay_buffer, self._reservoir_buffer,)
-
-    def load_buffers(self, buffers: tuple):
-        self.replay_buffer, self._reservoir_buffer = buffers
 
 
 class ParallelRainbowTestAgent(ParallelAgent):

@@ -4,6 +4,7 @@ import dill
 import json
 import argparse
 import os
+from pprint import pprint
 
 import sqlalchemy.exc
 import torch
@@ -131,7 +132,7 @@ def train(hparams, seed, trial, env_id):
     if not os.path.isdir(save_folder):
         os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = args.frames_per_save or min(250000, max(num_frames_train // 100, 1))
+    frames_per_save = args.frames_per_save or min(500000, max(num_frames_train // 100, 1))
 
     # Start from the last preset
     frame_start = 0
@@ -142,11 +143,11 @@ def train(hparams, seed, trial, env_id):
             ckpt_path = f"{save_folder}/{frame_start:09d}.pt"
             print("LOADING FROM CHECKPOINT:", ckpt_path)
             experiment._preset = torch.load(ckpt_path)
-            # find_base_agent(experiment._agent).load_buffers(
-            #     hickle.load(f"{save_folder}/buffers.hkl", safe=False)
-            # )
-            with open(f"{save_folder}/buffers.pkl", 'rb') as fd:
-                find_base_agent(experiment._agent).load_buffers(pickle.load(fd))
+            base_agent =find_base_agent(experiment._agent)
+            with open(f"{save_folder}/replay_buffer.pkl", 'rb') as fd:
+                base_agent.load_replay_buffer(pickle.load(fd))
+            with open(f"{save_folder}/reservoir_buffer.pkl", 'rb') as fd:
+                base_agent.load_reservoir_buffer(pickle.load(fd))
 
 
     if not is_ma_experiment:
@@ -181,16 +182,11 @@ def train(hparams, seed, trial, env_id):
                 torch.save(experiment._preset, f"{save_folder}/{experiment._frame:09d}.pt")
                 subprocess.run(["free"])
                 before = time.time()
-                # hickle.dump(
-                #     find_base_agent(experiment._agent).get_buffers(),
-                #     f"{save_folder}/buffers.hkl",
-                #     mode='w',
-                #     compression='lzf',
-                # )
-                with open(f"{save_folder}/buffers.pkl", 'wb') as fd:
-                    pickle.dump(find_base_agent(experiment._agent).get_buffers(),
-                                fd,
-                                protocol=4)
+                base_agent = find_base_agent(experiment._agent)
+                with open(f"{save_folder}/replay_buffer.pkl", 'wb') as fd:
+                    pickle.dump(base_agent.get_replay_buffer(), fd, protocol=4)
+                with open(f"{save_folder}/reservoir_buffer.pkl", 'wb') as fd:
+                    pickle.dump(base_agent.get_reservoir_buffer(), fd, protocol=4)
                 print(f"TOOK {time.time() - before} SECONDS TO SAVE BUFFERS")
 
                 # ParallelExperiment returns both agents' rewards in a single list: slice to get first agent's
@@ -292,6 +288,9 @@ def objective_all(trial):
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
+
+    print("HYPERPARAMETERS:")
+    pprint(hparams)
 
     # Run parallel jobs
     futures = [train.remote(hparams, seed, trial, env_id) for env_id in env_list]

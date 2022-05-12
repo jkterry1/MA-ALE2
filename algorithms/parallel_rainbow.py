@@ -16,6 +16,7 @@ from all.experiments import ParallelEnvExperiment
 
 from env_utils import make_vec_env
 from buffers import ParallelNStepBuffer, CompressedPrioritizedReplayBuffer
+from algorithms import Checkpointable
 
 
 
@@ -53,7 +54,7 @@ default_hyperparameters = {
 }
 
 
-class ParallelRainbow(ParallelAgent):
+class ParallelRainbow(ParallelAgent, Checkpointable):
     """
     A categorical DQN agent (C51).
     Rather than making a point estimate of the Q-function,
@@ -170,13 +171,6 @@ class ParallelRainbow(ParallelAgent):
         log_dist = torch.log(torch.clamp(dist, min=self.eps))
         log_target_dist = torch.log(torch.clamp(target_dist, min=self.eps))
         return (target_dist * (log_target_dist - log_dist)).sum(dim=-1)
-
-    def get_buffers(self) -> tuple:
-        """return all buffers in a dictionary for checkpointing/loading"""
-        return (self.replay_buffer,)
-
-    def load_buffers(self, buffers: tuple):
-        self.replay_buffer, = buffers
 
 
 class ParallelRainbowTestAgent(ParallelAgent):

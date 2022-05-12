@@ -15,18 +15,15 @@ from all.logging import DummyWriter
 from all.optim import LinearScheduler
 from all.policies import SoftmaxPolicy
 from all.presets.builder import ParallelPresetBuilder
+from algorithms import Checkpointable
 
 def nat_features(channels=10):
     return nature_features(channels)
 
 
-class PPOAgent(PPO):
+class PPOAgent(PPO, Checkpointable):
 
-    def get_buffers(self) -> tuple:
-        return ()
-
-    def load_buffers(self, buffers: tuple):
-        return
+    pass
 
 
 class PPOPreset(atari.PPOAtariPreset):
