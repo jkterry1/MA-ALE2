@@ -300,6 +300,7 @@ def objective_all(trial):
     random.seed(seed)
     torch.manual_seed(seed)
 
+    print("Starting Optuna trial", N_TRIALS)
     print("HYPERPARAMETERS:")
     pprint(hparams)
 
