@@ -23,7 +23,6 @@ from param_samplers import (
     sample_ppo_params, sample_nfsp_ppo_params
 )
 import signal
-# import hickle
 import pickle
 
 parser = argparse.ArgumentParser(description="Run an multiagent Atari benchmark.")
@@ -62,6 +61,7 @@ if args.device == 'cuda':
 SQL_ADDRESS = f"mysql://{args.db_user}:{args.db_password}@35.194.57.226/{args.db_name}"
 
 env_list = args.envs.split(',')
+N_TRIALS = -1  # overwritten in optuna objective fn
 
 
 with open("plot_data/builtin_env_rewards.json", "r") as fd:
@@ -80,6 +80,14 @@ elif args.trainer_type == "nfsp_ppo":
     sampler_fn = sample_nfsp_ppo_params
 else:
     raise ValueError
+
+def mark_trial_stopped():
+    trainer_dir = f"checkpoint/{args.trainer_type}"
+    status_file = f"{trainer_dir}/train_status.pkl"
+    if os.path.exists(status_file):
+        status = pd.read_pickle(status_file)
+        status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
+        pd.to_pickle(status, status_file)
 
 def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     """
@@ -209,6 +217,9 @@ def train(hparams, seed, trial, env_id):
                 except sqlalchemy.exc.OperationalError:
                     print(f"CAUGHT SQL CONNECTION ERROR DURING REPORT/PRUNE: \n"
                           f"Couldn't connect to RDB at frame {experiment._frame}")
+                except Exception as e:
+                    mark_trial_stopped()
+                    raise e
     else:
         for frame in range(frame_start, num_frames_train, frames_per_save):
             experiment.train(frames=frame)
@@ -233,7 +244,6 @@ def train(hparams, seed, trial, env_id):
     return mean_norm_return
 
 
-N_TRIALS = -1
 def objective_all(trial):
     """Get hyperparams for trial"""
     global N_TRIALS
@@ -301,21 +311,20 @@ def objective_all(trial):
     status.loc[status.trial == trial.number, 'status'] = 'finished'
     pd.to_pickle(status, status_file)
 
-    print(hparams)
-    print(norm_returns)
+    print("TRIAL FINISHED with hparams:")
+    pprint(hparams)
 
-    return np.mean(norm_returns)
+    mean_norm_return = np.mean(norm_returns)
+    print("NORMALIZED RETURNS:", norm_returns)
+    print("Mean norm return:", mean_norm_return)
+
+    return mean_norm_return
 
 
 def sig_handler(signum, frame):
     """handler for OS-level signals, like SIGTERM, etc."""
     print(f"SAW SIGNAL {signal.Signals(signum).name}")
-    trainer_dir = f"checkpoint/{args.trainer_type}"
-    status_file = f"{trainer_dir}/train_status.pkl"
-    if os.path.exists(status_file):
-        status = pd.read_pickle(status_file)
-        status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
-        pd.to_pickle(status, status_file)
+    mark_trial_stopped()
 
 signal.signal(signal.SIGTERM, sig_handler)
 signal.signal(signal.SIGINT, sig_handler)
