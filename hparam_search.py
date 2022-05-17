@@ -217,6 +217,8 @@ def train(hparams, seed, trial, env_id):
                 except sqlalchemy.exc.OperationalError:
                     print(f"CAUGHT SQL CONNECTION ERROR DURING REPORT/PRUNE: \n"
                           f"Couldn't connect to RDB at frame {experiment._frame}")
+                except optuna.exceptions.TrialPruned:
+                    return mean_norm_return
                 except Exception as e:
                     mark_trial_stopped()
                     raise e
@@ -376,5 +378,5 @@ if __name__ == "__main__":
     for key, value in trial.params.items():
         print("    {}: {}".format(key, value))
 
-    with open(f"best_params_{args.env}.pkl", 'wb') as fd:
+    with open(f"best_params_{args.envs.replace(',', '_')}.pkl", 'wb') as fd:
         dill.dump(trial.params, fd)
