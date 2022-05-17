@@ -6,6 +6,7 @@ import argparse
 import os
 from pprint import pprint
 
+import filelock
 import sqlalchemy.exc
 import torch
 from algorithms.rainbow_nfsp import save_name
@@ -85,9 +86,12 @@ def mark_trial_stopped():
     trainer_dir = f"checkpoint/{args.trainer_type}"
     status_file = f"{trainer_dir}/train_status.pkl"
     if os.path.exists(status_file):
-        status = pd.read_pickle(status_file)
-        status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
-        pd.to_pickle(status, status_file)
+        lock = filelock.FileLock(status_file + ".lock", timeout=30)
+        print(f"Acquiring lock for {status_file}...")
+        with lock:
+            status = pd.read_pickle(status_file)
+            status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
+            pd.to_pickle(status, status_file)
 
 def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     """
@@ -152,11 +156,15 @@ def train(hparams, seed, trial, env_id):
             ckpt_path = f"{save_folder}/{frame_start:09d}.pt"
             print("LOADING FROM CHECKPOINT:", ckpt_path)
             experiment._preset = torch.load(ckpt_path)
-            base_agent =find_base_agent(experiment._agent)
-            with open(f"{save_folder}/replay_buffer.pkl", 'rb') as fd:
-                base_agent.load_replay_buffer(pickle.load(fd))
-            with open(f"{save_folder}/reservoir_buffer.pkl", 'rb') as fd:
-                base_agent.load_reservoir_buffer(pickle.load(fd))
+            base_agent = find_base_agent(experiment._agent)
+            try:
+                with open(f"{save_folder}/replay_buffer.pkl", 'rb') as fd:
+                    base_agent.load_replay_buffer(pickle.load(fd))
+                with open(f"{save_folder}/reservoir_buffer.pkl", 'rb') as fd:
+                    base_agent.load_reservoir_buffer(pickle.load(fd))
+            except Exception as e:
+                mark_trial_stopped()
+                raise e
 
 
     if not is_ma_experiment:
