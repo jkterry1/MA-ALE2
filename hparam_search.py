@@ -82,7 +82,7 @@ elif args.trainer_type == "nfsp_ppo":
 else:
     raise ValueError
 
-def mark_trial_stopped():
+def mark_trial_stopped(new_status='stopped'):
     trainer_dir = f"checkpoint/{args.trainer_type}"
     status_file = f"{trainer_dir}/train_status.pkl"
     if os.path.exists(status_file):
@@ -90,7 +90,7 @@ def mark_trial_stopped():
         print(f"Acquiring lock for {status_file}...")
         with lock:
             status = pd.read_pickle(status_file)
-            status.loc[status['trial'] == N_TRIALS, 'status'] = 'stopped'
+            status.loc[status['trial'] == N_TRIALS, 'status'] = new_status
             pd.to_pickle(status, status_file)
 
 def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
@@ -226,6 +226,7 @@ def train(hparams, seed, trial, env_id):
                     print(f"CAUGHT SQL CONNECTION ERROR DURING REPORT/PRUNE: \n"
                           f"Couldn't connect to RDB at frame {experiment._frame}")
                 except optuna.exceptions.TrialPruned:
+                    mark_trial_stopped(new_status='finished')
                     return mean_norm_return
                 except Exception as e:
                     mark_trial_stopped()
