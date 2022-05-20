@@ -5,6 +5,7 @@ import json
 import argparse
 import os
 from pprint import pprint
+from glob import glob
 
 import filelock
 import sqlalchemy.exc
@@ -52,6 +53,8 @@ parser.add_argument("--max-trials", type=int, default=100,
                     help="number of trials for EACH environment, or how many times hparams are sampled.")
 parser.add_argument("--no-ckpt", action="store_true",
                     help="learning start from previous trained checkpoints")
+parser.add_argument("--keep-num-ckpts", type=int, default=1,
+                    help="retain this many checkpoints per run directory")
 args = parser.parse_args()
 args.device = 'cuda' if args.num_gpus > 0 else 'cpu'
 
@@ -200,6 +203,11 @@ def train(hparams, seed, trial, env_id):
             if (experiment._frame % frames_per_save) < num_envs:
                 # time to save and eval
                 torch.save(experiment._preset, f"{save_folder}/{experiment._frame:09d}.pt")
+                # delete old checkpoints
+                checkpoint_files = sorted( glob(f"{save_folder}/*.pt") )
+                for ckpt_file in checkpoint_files[:-args.keep_num_ckpts]:
+                    os.remove(ckpt_file)
+
                 subprocess.run(["free"])
                 before = time.time()
                 base_agent = find_base_agent(experiment._agent)
