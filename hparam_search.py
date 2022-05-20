@@ -16,6 +16,7 @@ import pandas as pd
 from experiment_train import trainer_types
 import optuna
 from optuna.trial import TrialState
+from optuna.study import MaxTrialsCallback
 import time
 import ray
 from all.experiments import MultiagentEnvExperiment
@@ -85,13 +86,15 @@ else:
 def mark_trial_stopped(new_status='stopped'):
     trainer_dir = f"checkpoint/{args.trainer_type}"
     status_file = f"{trainer_dir}/train_status.pkl"
+    lock_file = f"{trainer_dir}/.train_status.pkl.lock"
     if os.path.exists(status_file):
-        lock = filelock.FileLock(status_file + ".lock", timeout=30)
+        lock = filelock.FileLock(lock_file, timeout=60)
         print(f"Acquiring lock for {status_file}...")
         with lock:
             status = pd.read_pickle(status_file)
             status.loc[status['trial'] == N_TRIALS, 'status'] = new_status
             pd.to_pickle(status, status_file)
+        print(f"Wrote {new_status} for trial {N_TRIALS} in {status_file}.")
 
 def normalize_score(score: np.ndarray, env_id: str) -> np.ndarray:
     """
@@ -320,8 +323,7 @@ def objective_all(trial):
     norm_returns = ray.get(futures)
 
     # Set run as finished in DF
-    status.loc[status.trial == trial.number, 'status'] = 'finished'
-    pd.to_pickle(status, status_file)
+    mark_trial_stopped(new_status='finished')
 
     print("TRIAL FINISHED with hparams:")
     pprint(hparams)
@@ -367,8 +369,9 @@ if __name__ == "__main__":
             study = optuna.load_study(study_name=args.study_name,
                                       storage=SQL_ADDRESS)
 
-    while N_TRIALS < args.max_trials:
-        study.optimize(objective_all, n_trials=1, timeout=600)
+    study.optimize(objective_all, callbacks=[MaxTrialsCallback(args.max_trials)])
+
+    mark_trial_stopped('finished')
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
