@@ -332,6 +332,13 @@ def objective_all(trial):
 
     # Set run as finished in DF
     mark_trial_stopped(new_status='finished')
+    # finished training; delete replay buffer files
+    buffer_size = hparams.get('replay_buffer_size', None)
+    for env_id in env_list:
+        save_folder = "checkpoint/" + save_name(args.trainer_type, env_id, buffer_size, args.frames, seed)
+        buffer_files = glob(f"{save_folder}/*buffer.pkl")
+        for bf in buffer_files:
+            os.remove(bf)
 
     print("TRIAL FINISHED with hparams:")
     pprint(hparams)
