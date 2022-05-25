@@ -278,7 +278,7 @@ def make_parallel_rainbow(env_name, device, replay_buffer_size, **kwargs):
 
     quiet = kwargs.get('quiet', False)
     hparams = kwargs.get('hparams', {})
-    hparams['n_envs'] = n_envs * 2  # num agents
+    hparams['n_envs'] = n_envs * 2 if not train_against_builtin else n_envs  # num agents
     hparams['model_constructor'] = rainbow_model
 
     preset = parallel_rainbow.env(venv).device(device).hyperparameters(**hparams).build()
