@@ -228,7 +228,9 @@ ppo_nfsp = ParallelPresetBuilder('ppo_nfsp', default_hyperparameters, PPONFSPPre
 
 
 def make_ppo_nfsp(env_name, device, _, **kwargs):
-    venv = make_vec_env(env_name, device=device, vs_builtin=False)
+    train_against_builtin = kwargs.get('train_against_builtin', False)
+
+    venv = make_vec_env(env_name, device=device, vs_builtin=train_against_builtin)
     test_venv = make_vec_env(env_name, device=device, vs_builtin=True)
 
     quiet = kwargs.get('quiet', False)

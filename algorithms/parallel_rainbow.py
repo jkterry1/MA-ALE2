@@ -272,7 +272,8 @@ def rainbow_model(env, frames=10, hidden=512, atoms=51, sigma=0.5):
 
 def make_parallel_rainbow(env_name, device, replay_buffer_size, **kwargs):
     n_envs = 16
-    venv = make_vec_env(env_name, device=device, vs_builtin=False, num_envs=n_envs)
+    train_against_builtin = kwargs.get('train_against_builtin', False)
+    venv = make_vec_env(env_name, device=device, vs_builtin=train_against_builtin, num_envs=n_envs)
     test_venv = make_vec_env(env_name, device=device, vs_builtin=True, num_envs=n_envs)
 
     quiet = kwargs.get('quiet', False)

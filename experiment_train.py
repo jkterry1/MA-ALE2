@@ -12,6 +12,7 @@ from shared_utils import save_name
 import numpy as np
 import time
 import random
+from glob import glob
 
 import datetime
 def datetime_str():
@@ -55,25 +56,32 @@ def main(return_eval=False):
         help="The unique id of the experiment run (for running multiple experiments)."
     )
     parser.add_argument("--frames-per-save", type=int, default=None)
+    parser.add_argument("--train-against-builtin", action='store_true')
     args = parser.parse_args()
 
     np.random.seed(args.experiment_seed)
     random.seed(args.experiment_seed)
     torch.manual_seed(args.experiment_seed)
 
-    experiment, preset, env = trainer_types[args.trainer_type](args.env, args.device, args.replay_buffer_size,
-                                                               seed=args.experiment_seed,
-                                                               num_frames=args.frames)
+    experiment, preset, env = trainer_types[args.trainer_type](
+        args.env, args.device, args.replay_buffer_size,
+        seed=args.experiment_seed,
+        num_frames=args.frames,
+        train_against_builtin=args.train_against_builtin,
+    )
     env.seed(args.experiment_seed)
-    # run_experiment()
-    save_folder = "checkpoint/" + save_name(args.trainer_type, args.env, args.replay_buffer_size,
-                                            args.frames, args.experiment_seed)
+    train_builtin_str = "_builtin" if args.train_against_builtin else ""
+    save_folder = "checkpoint/" + save_name(args.trainer_type + train_builtin_str, args.env,
+                                            args.replay_buffer_size, args.frames, args.experiment_seed)
     os.makedirs(save_folder)
     num_frames_train = int(args.frames)
-    frames_per_save = args.frames_per_save or num_frames_train//100
+    frames_per_save = args.frames_per_save or min(500000, max(num_frames_train // 100, 1))
     for frame in range(0,num_frames_train,frames_per_save):
         experiment.train(frames=frame)
         torch.save(preset, f"{save_folder}/{frame+frames_per_save:09d}.pt")
+        checkpoint_files = sorted(glob(f"{save_folder}/*.pt"))
+        for ckpt_file in checkpoint_files[:-1]:
+            os.remove(ckpt_file)
 
     if return_eval:
         returns = experiment.test(episodes=1)
