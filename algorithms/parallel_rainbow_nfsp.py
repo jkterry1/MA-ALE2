@@ -146,9 +146,9 @@ class ParallelRainbowNFSP(ParallelRainbow, Checkpointable):
             # RLcard repo just one-hots the actions. Likely to get around the
             #   Q/policy origin issue (no action probs for best_action or exploration)
             one_hot = F.one_hot(actions, num_classes=self.q_dist.n_actions)
-            action_probs = self._avg_policy(states)
+            action_logprobs = self._average_logprobs(states)
             # cross entropy loss and do optimizer step
-            ce_loss = - (one_hot * action_probs).sum(dim=-1).mean()
+            ce_loss = - (one_hot * action_logprobs).sum(dim=-1).mean()
             self._avg_policy.reinforce(ce_loss)
 
             # debugging
@@ -162,11 +162,15 @@ class ParallelRainbowNFSP(ParallelRainbow, Checkpointable):
                 and len(self._reservoir_buffer) >= self.minibatch_size)
 
     def _average_action(self, state):
-        logits = self._avg_policy(state) # batch x actions
-        probs = F.softmax(logits, dim=-1)
+        probs = self._average_logprobs(state).exp()
         actions = probs.multinomial(1).squeeze()
 
         return actions
+
+    def _average_logprobs(self, state):
+        logits = self._avg_policy(state)
+        log_probs = F.log_softmax(logits, dim=-1)
+        return log_probs
 
 
 class ParallelRainbowTestAgent(ParallelAgent):
