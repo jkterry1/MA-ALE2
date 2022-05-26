@@ -37,6 +37,23 @@ python3 experiment_eval.py boxing_v1 nfsp_rainbow [checkpoint_num] [path/to/chec
 For example:  
 `python3 experiment_eval.py pong_v2 000500000 checkpoint/shared_rainbow/pong_v2/RB1000000_F50000000.0_S1636751414`
 
+For generating rendered gifs:
+`python3 experiment_eval.py --device cpu --agent-random --generate-gif --cropped pong_v2 000500000 checkpoint/shared_rainbow/pong_v2/RB1000000_F50000000.0_S1636751414`
+
+You can find the rendered image under the checkpoint directory.
+`checkpoint/shared_rainbow/pong_v2/RB1000000_F50000000.0_S1636751414/playbacks`
+in this case.  
+`--cropped` flag will crop the image output as CropObservation wrapper do.
+Currently CropObservation only crops for the `boxing_v1` and `tennis_v2` envs.  
+You can see unwrapped observation if you omit the `--cropped` flag from the command.
+
+original | cropped
+:-: | :-:
+<video src=https://user-images.githubusercontent.com/48481523/170473388-645f8d71-08ba-43fe-b91d-79d804fac375.mp4> | <video src=https://user-images.githubusercontent.com/48481523/170472949-ecc77a41-6908-4fe9-9adc-dec03712797f.mp4>
+<video src=https://user-images.githubusercontent.com/48481523/170472696-110ccd5b-4b6f-4371-9f60-1cb82ba4ce30.mp4> | <video src="https://user-images.githubusercontent.com/48481523/170462859-0d094cc5-4a98-4916-9b9c-417441a01a86.mp4">
+
+
+
 ### Run hyperparameter search on Slurm HPC 
 
 - Generate run command file:  

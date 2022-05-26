@@ -7,7 +7,8 @@ import random
 import subprocess
 import shutil
 from PIL import Image
-from env_utils import make_env, InvertColorAgentIndicator
+from datetime import datetime
+from env_utils import make_env, InvertColorAgentIndicator, CropObservation
 from all.agents.independent import IndependentMultiagent
 
 from algorithms.shared_rainbow import make_rainbow_preset
@@ -32,7 +33,7 @@ class TestRandom:
         return random.randint(0,17)
 
 
-def generate_episode_gifs(env, _agent, max_frames, dir):
+def generate_episode_gifs(env, _agent, max_frames, dir, cropped=False):
     # initialize the episode
     state = env.reset()
     frame_idx = 0
@@ -43,6 +44,8 @@ def generate_episode_gifs(env, _agent, max_frames, dir):
         action = _agent.act(state) if not state.done else None
         state = env.step(action)
         obs = env._env.unwrapped.ale.getScreenRGB()
+        if cropped:
+            obs = obs[CropObservation.DEFAULT_CROP_INDEX.get(env.name, ())]
         if not prev_obs or not np.equal(obs, prev_obs).all():
             im = Image.fromarray(obs)
             im.save(f"{dir}{str(frame_idx).zfill(4)}.png")
@@ -114,7 +117,7 @@ def main():
         "checkpoint", help="Checkpoint number."
     )
     parser.add_argument(
-        "folder", help="Folder with checkpoitns."
+        "folder", help="Folder with checkpoints."
     )
     parser.add_argument(
         "--device",
@@ -125,7 +128,7 @@ def main():
         "--vs-random", action="store_true", help="Play first_0 vs random for all other players."
     )
     parser.add_argument(
-        "--vs-builtin", action="store_true", help="Play first_0 vs the builtin agnet for other player (only compatable with certain environments which have the builtin player)."
+        "--vs-builtin", action="store_true", help="Play first_0 vs the builtin agent for other player (only compatable with certain environments which have the builtin player)."
     )
     parser.add_argument(
         "--agent-random", action="store_true", help="Play first_0 vs random for all other players."
@@ -137,7 +140,10 @@ def main():
         "--agent", type=str, default="first_0", help="Agent to print out value."
     )
     parser.add_argument(
-        "--generate-gif", action="store_true", help="Agent to print out value."
+        "--generate-gif", action="store_true", help="flag to save rendered gif"
+    )
+    parser.add_argument(
+        "--cropped", action="store_true", help="flag to crop rendered image as agents see."
     )
     args = parser.parse_args()
 
@@ -184,34 +190,38 @@ def main():
         print(returns)
         agent_names = ["first_0", "second_0", "third_0", "fourth_0"]
         open("out.txt",'a').write(f"{args.folder},{args.checkpoint},{args.agent},{','.join(str(returns_agent(returns, agent)) for agent in agent_names)},{args.vs_random},{args.agent_random}\n")
-        #print(returns_agent1(returns))
-        # preset = independent({agent:base_builder for agent in env.agents}).env(env).hyperparameters(replay_buffer_size=350000,replay_start_size=100)
-        # agent = preset.agent()
+        
     else:
-        flat_fold = args.folder.replace("/","")
-        name = f"{flat_fold}_{args.checkpoint}_{args.agent}_{args.vs_random}_{args.agent_random}"
-        folder = f"frames/{name}/"
-        os.makedirs(folder,exist_ok=True)
-        os.makedirs("gifs",exist_ok=True)
-        generate_episode_gifs(env, agent, args.frames, folder)
-
-        ffmpeg_command = [
+        opponent = "vs_random" * args.vs_random + "vs_builtin" * args.vs_builtin + "agent_random" * args.agent_random
+        cropped = "cropped" * args.cropped
+        now = datetime.now().strftime("%m%d%H%M%S")
+        ckpt = int(args.checkpoint)
+        name = f"{ckpt}-{args.agent}-{opponent}-{cropped}-{now}"
+        
+        frame_dir = f"{args.folder}/frames/"
+        playback_dir = f"{args.folder}/playbacks/"
+        os.makedirs(frame_dir,exist_ok=True)
+        os.makedirs(playback_dir,exist_ok=True)
+        
+        generate_episode_gifs(env, agent, args.frames, frame_dir, args.cropped)
+        ffmpeg_command_mp4 = [
             "ffmpeg",
             "-framerate", "60",
-            "-i", f"frames/{name}/%04d.png",
+            "-i", f"{frame_dir}%04d.png",
             "-vcodec", "libx264",
             "-crf", "1",
             "-pix_fmt", "yuv420p",
-            f"gifs/{name}.mp4"
+            f"{playback_dir}{name}.mp4"
         ]
-        # ffmpeg_command = [
-        #     "convert",
-        #     '-delay','1x120',
-        #      f"frames/{name}/*.png",
-        #     f"gifs/{name}.gif"
-        # ]
-        subprocess.run(ffmpeg_command)
-        shutil.rmtree(f"frames/{name}")
+
+        ffmpeg_command_gif = [
+            'ffmpeg',
+            '-i', f'{frame_dir}%04d.png',
+            f'{playback_dir}{name}.gif']
+
+        subprocess.run(ffmpeg_command_mp4)
+        subprocess.run(ffmpeg_command_gif)
+        shutil.rmtree(f"{frame_dir}")
 
 
 if __name__ == "__main__":

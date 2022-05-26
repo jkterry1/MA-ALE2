@@ -52,11 +52,16 @@ def make_env(env_name, vs_builtin=False, device='cuda'):
             obs_type='grayscale_image',
             full_action_space=False,
         )
+    if env_name in CropObservation.DEFAULT_CROP_INDEX.keys():
+        env = crop_obs(env, env_name)
     env = noop_reset_v0(env)                # skip randint # steps beginning of each episode
     env = ss.max_observation_v0(env, 2)     # sequential observation: (env, 2)== maximum 2 frames can be observation and then skip
     env = ss.frame_skip_v0(env, 4)          # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
     env = ss.resize_v0(env, 84, 84)         # resizing
     env = ss.reshape_v0(env, (1, 84, 84))   # reshaping (expand dummy channel dimension)
+    # env = frame_stack_v2(env, stack_size=4, stack_dim0=True) # -> (4,84,84)
+    env = InvertColorAgentIndicator(env)    # -> (10, 84, 84)
+
     return env
 
 def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
@@ -67,6 +72,8 @@ def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
             obs_type='grayscale_image',
             full_action_space=False,
         )
+    if env_name in CropObservation.DEFAULT_CROP_INDEX.keys():
+        env = crop_obs(env, env_name)
     env = noop_reset_v0(env)                # skip randint # steps beginning of each episode
     env = ss.max_observation_v0(env, 2)     # stacking observation: (env, 2)==stacking 2 frames as observation
     env = ss.frame_skip_v0(env, 4)          # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
@@ -339,5 +346,69 @@ class noop_reset_par(BaseParallelWraper):
                 obs = self.env.reset()
         return obs
 
-
 noop_reset_v0 = WrapperChooser(gym_wrapper=noop_reset_gym, parallel_wrapper=noop_reset_par)
+
+class CropObservation(gym.Wrapper):
+    DEFAULT_CROP_INDEX = {
+        "boxing_v1": (slice(None), slice(10, -10)),
+        "tennis_v2": (slice(4, None), slice(10, -10))
+    }
+
+    def __init__(self, env, env_name, index: tuple = None):
+        super().__init__(env)
+        if index:
+            self.index = index
+        else:
+            self.index = self.DEFAULT_CROP_INDEX.get(env_name, ())
+
+    def reset(self, **kwargs):
+        obs = super().reset(**kwargs)
+        obs = self._crop(obs)
+
+        return obs
+
+    def step(self, action):
+        obs, rew, done, info = super().step(action)
+        obs = self._crop(obs)
+        
+        return obs, rew, done, info
+    
+    def _crop(self, obs):
+        for k, v in obs.items():
+            obs[k] = v[self.index]
+        
+        return obs
+
+class CropObservationPar(BaseParallelWraper):
+    DEFAULT_CROP_INDEX = {
+        "boxing_v1": (slice(None), slice(10, -10)),
+        "tennis_v2": (slice(4, None), slice(10, -10))
+    }
+
+    def __init__(self, env, env_name, index: tuple = None):
+        super().__init__(env)
+        if index:
+            self.index = index
+        else:
+            self.index = self.DEFAULT_CROP_INDEX.get(env_name, ())
+
+    def reset(self):
+        obs = super().reset()
+        obs = self._crop(obs)
+
+        return obs
+
+    def step(self, action):
+        obs, rew, done, info = super().step(action)
+        obs = self._crop(obs)
+        
+        return obs, rew, done, info
+    
+    def _crop(self, obs):
+        for k, v in obs.items():
+            obs[k] = v[self.index]
+        
+        return obs
+
+crop_obs = WrapperChooser(gym_wrapper=CropObservation, parallel_wrapper=CropObservationPar)
+
