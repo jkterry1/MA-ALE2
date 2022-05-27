@@ -73,7 +73,7 @@ def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
             full_action_space=False,
         )
     if env_name in CropObservation.DEFAULT_CROP_INDEX.keys():
-        env = CropObservation(env, env_name)
+        env = crop_obs(env, env_name)
     env = noop_reset_v0(env)                # skip randint # steps beginning of each episode
     env = ss.max_observation_v0(env, 2)     # stacking observation: (env, 2)==stacking 2 frames as observation
     env = ss.frame_skip_v0(env, 4)          # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
