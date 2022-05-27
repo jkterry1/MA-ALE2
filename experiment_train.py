@@ -1,5 +1,7 @@
 import argparse
 import os
+
+from all.experiments import ParallelEnvExperiment
 import torch
 from algorithms.shared_rainbow import make_rainbow_preset
 from algorithms.independent_rainbow import make_indepedent_rainbow
@@ -57,6 +59,7 @@ def main(return_eval=False):
     )
     parser.add_argument("--frames-per-save", type=int, default=None)
     parser.add_argument("--train-against-builtin", action='store_true')
+    parser.add_argument("--num-eval-episodes", type=int, default=8)
     args = parser.parse_args()
 
     np.random.seed(args.experiment_seed)
@@ -69,6 +72,7 @@ def main(return_eval=False):
         num_frames=args.frames,
         train_against_builtin=args.train_against_builtin,
     )
+    is_parallel_exp = isinstance(experiment, ParallelEnvExperiment)
     env.seed(args.experiment_seed)
     train_builtin_str = "_builtin" if args.train_against_builtin else ""
     save_folder = "checkpoint/" + save_name(args.trainer_type + train_builtin_str, args.env,
@@ -82,6 +86,16 @@ def main(return_eval=False):
         checkpoint_files = sorted(glob(f"{save_folder}/*.pt"))
         for ckpt_file in checkpoint_files[:-1]:
             os.remove(ckpt_file)
+
+        num_eval_episodes = args.num_eval_episodes
+        if is_parallel_exp:
+            n_agents = 2
+            num_eval_episodes = num_eval_episodes * n_agents
+            eval_returns = experiment.test(episodes=num_eval_episodes)[::n_agents]
+
+            mean_return = np.mean(eval_returns)
+            std_return = np.std(eval_returns)
+            experiment._writer.add_summary('returns-test', mean_return, std_return, step=frame)
 
     if return_eval:
         returns = experiment.test(episodes=1)
