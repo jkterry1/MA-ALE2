@@ -267,8 +267,6 @@ class ParallelRainbowPreset(ParallelPreset):
 
 parallel_rainbow = ParallelPresetBuilder('parallel_rainbow', default_hyperparameters, ParallelRainbowPreset)
 
-def rainbow_model(env, frames=10, hidden=512, atoms=51, sigma=0.5):
-    return nature_rainbow(env, frames, hidden, atoms, sigma)
 
 def make_parallel_rainbow(env_name, device, replay_buffer_size, **kwargs):
     n_envs = 16
@@ -279,7 +277,7 @@ def make_parallel_rainbow(env_name, device, replay_buffer_size, **kwargs):
     quiet = kwargs.get('quiet', False)
     hparams = kwargs.get('hparams', {})
     hparams['n_envs'] = n_envs * 2 if not train_against_builtin else n_envs  # num agents
-    hparams['model_constructor'] = rainbow_model
+    hparams['model_constructor'] = nature_rainbow
 
     preset = parallel_rainbow.env(venv).device(device).hyperparameters(**hparams).build()
     experiment = ParallelEnvExperiment(preset, venv, test_env=test_venv, quiet=quiet)

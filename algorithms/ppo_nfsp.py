@@ -18,7 +18,7 @@ from all.presets import ParallelPresetBuilder
 
 from buffers import ParallelReservoirBuffer
 from env_utils import make_vec_env
-from models import our_nat_features
+from models import nature_features
 from .shared_ppo import PPOPreset
 from algorithms import Checkpointable
 
@@ -239,7 +239,7 @@ def make_ppo_nfsp(env_name, device, _, **kwargs):
     hparams = kwargs.get('hparams', {})
     preset = ppo_nfsp.env(venv).device(device).hyperparameters(
         n_envs=venv.num_envs,
-        feature_model_constructor=our_nat_features,
+        feature_model_constructor=nature_features,
         **hparams
     ).build()
 

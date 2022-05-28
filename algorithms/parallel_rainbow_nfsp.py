@@ -19,7 +19,7 @@ from all.nn import RLNetwork, NoisyFactorizedLinear
 from env_utils import make_vec_env
 from buffers import ParallelNStepBuffer, ParallelReservoirBuffer, CompressedPrioritizedReplayBuffer
 from .parallel_rainbow import ParallelRainbow, ParallelRainbowPreset
-from models import our_nat_features
+from models import our_nat_features, nature_features
 from algorithms import Checkpointable
 
 
@@ -192,7 +192,7 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
         super(ParallelRainbowNFSPPreset, self).__init__(env, name, device, **hyperparameters)
 
         self.avg_model = RLNetwork(nn.Sequential(
-            our_nat_features(),
+            nature_features(),
             NoisyFactorizedLinear(512, self.n_actions),
         )).to(device)
 
@@ -298,8 +298,6 @@ class ParallelRainbowNFSPPreset(ParallelRainbowPreset):
 
 parallel_rainbow_nfsp = ParallelPresetBuilder('parallel_rainbow_nfsp', default_hyperparameters, ParallelRainbowNFSPPreset)
 
-def rainbow_model(env, frames=10, hidden=512, atoms=51, sigma=0.5):
-    return nature_rainbow(env, frames, hidden, atoms, sigma)
 
 def make_parallel_rainbow_nfsp(env_name, device, replay_buffer_size, **kwargs):
     n_envs = 16
@@ -310,7 +308,7 @@ def make_parallel_rainbow_nfsp(env_name, device, replay_buffer_size, **kwargs):
     quiet = kwargs.get('quiet', False)
     hparams = kwargs.get('hparams', {})
     hparams['n_envs'] = n_envs * 2 if not train_against_builtin else n_envs  # num agents
-    hparams['model_constructor'] = rainbow_model
+    hparams['model_constructor'] = nature_rainbow
 
     preset = parallel_rainbow_nfsp.env(venv).device(device).hyperparameters(**hparams).build()
     experiment = ParallelEnvExperiment(preset, venv, test_env=test_venv, quiet=quiet)

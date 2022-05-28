@@ -17,9 +17,7 @@ from all.policies import SoftmaxPolicy
 from all.presets.builder import ParallelPresetBuilder
 from algorithms import Checkpointable
 
-def nat_features(channels=10):
-    return nature_features(channels)
-
+from models import nature_features
 
 class PPOAgent(PPO, Checkpointable):
 
@@ -107,7 +105,7 @@ def make_ppo_vec(env_name, device, _, **kwargs):
     hparams = kwargs.get('hparams', {})
     preset = ppo_preset.env(venv).device(device).hyperparameters(
         n_envs=venv.num_envs,
-        feature_model_constructor=nat_features,
+        feature_model_constructor=nature_features,
         **hparams
     ).build()
 

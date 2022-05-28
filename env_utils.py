@@ -135,11 +135,13 @@ def InvertColorAgentIndicator(env):
         elif num_agents == 4:
             # Color rotation
             rotated_obs = ((255*agent_idx)//4 + obs) % 255
-        indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
-        indicator[0] = 255 * (agent_idx % 2)
-        indicator[1] = 255 * (((agent_idx+1) // 2) % 2)
-
-        return np.concatenate([obs, rotated_obs, indicator], axis=0)
+        else:
+            raise ValueError
+        # indicator = np.zeros((2, )+obs.shape[1:],dtype="uint8")
+        # indicator[0] = 255 * (agent_idx % 2)
+        # indicator[1] = 255 * (((agent_idx+1) // 2) % 2)
+        # return np.concatenate([obs, rotated_obs, indicator], axis=0)
+        return rotated_obs
     env = ss.observation_lambda_v0(env, modify_obs)
     env = ss.pad_observations_v0(env)
     return env
@@ -208,7 +210,6 @@ def stack_init(obs_space, stack_size, stack_dim0=False):
     else:
         return 0
 
-
 def stack_obs(frame_stack, obs, obs_space, stack_size, stack_dim0=False):
     """
     Parameters
@@ -250,9 +251,6 @@ def stack_obs(frame_stack, obs, obs_space, stack_size, stack_dim0=False):
 
     elif isinstance(obs_space, Discrete):
         return (frame_stack * obs_space.n + obs) % (obs_space.n ** stack_size)
-
-
-
 
 def frame_stack_v2(env, stack_size=4, stack_dim0=False):
     assert isinstance(stack_size, int), "stack size of frame_stack must be an int"
@@ -340,9 +338,9 @@ class noop_reset_par(BaseParallelWraper):
             noops = np.random.randint(1, self.noop_max + 1)
         assert noops > 0
 
-        for _ in range(noops):
+        for i in range(noops):
             obs, _, done, _ = self.env.step(self.noop_action)
-            if done:
+            if all(done.values()):
                 obs = self.env.reset()
         return obs
 
@@ -351,7 +349,10 @@ noop_reset_v0 = WrapperChooser(gym_wrapper=noop_reset_gym, parallel_wrapper=noop
 class CropObservation(gym.Wrapper):
     DEFAULT_CROP_INDEX = {
         "boxing_v1": (slice(None), slice(10, -10)),
-        "tennis_v2": (slice(4, None), slice(10, -10))
+        "tennis_v2": (slice(4, None), slice(10, -10)),
+        "pong_v2": (slice(None, -15), slice(None)),
+        "double_dunk_v2": (slice(None, -20), slice(None)),
+        "ice_hockey_v1": (slice(None, -22), slice(30, -30))
     }
 
     def __init__(self, env, env_name, index: tuple = None):
@@ -380,10 +381,7 @@ class CropObservation(gym.Wrapper):
         return obs
 
 class CropObservationPar(BaseParallelWraper):
-    DEFAULT_CROP_INDEX = {
-        "boxing_v1": (slice(None), slice(10, -10)),
-        "tennis_v2": (slice(4, None), slice(10, -10))
-    }
+    DEFAULT_CROP_INDEX = CropObservation.DEFAULT_CROP_INDEX
 
     def __init__(self, env, env_name, index: tuple = None):
         super().__init__(env)
