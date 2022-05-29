@@ -193,7 +193,7 @@ SBATCH_PROTOTYPE = f"""#!/bin/bash
 {f"#SBATCH --exclude={','.join(str(node) for node in banned_nodes)}" if banned_nodes else ''}
 #SBATCH --mem={args.mem}gb
 #SBATCH --mail-user={args.email if args.email is not None else username + "@umiacs.umd.edu"}
-#SBATCH --mail-type=FAIL,ARRAY_TASKS
+#SBATCH --mail-type=ALL
 {f"#SBATCH --nodelist={args.nodelist}" if args.nodelist else ''}
 
 source {"/".join(path.split("/")[:-2])}/etc/profile.d/conda.sh
