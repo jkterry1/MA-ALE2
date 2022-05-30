@@ -1,5 +1,6 @@
 import importlib
 import gym
+import stable_baselines3.common.vec_env
 from gym.spaces import Box, Discrete
 import numpy as np
 from itertools import cycle
@@ -64,7 +65,7 @@ def make_env(env_name, vs_builtin=False, device='cuda'):
 
     return env
 
-def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
+def make_vec_env_ss(env_name, vs_builtin=False):
     if vs_builtin:
         env = get_base_builtin_env(env_name, parallel=True, full_action_space=False)
     else:
@@ -82,8 +83,27 @@ def make_vec_env(env_name, device, vs_builtin=False, num_envs=16):
     env = frame_stack_v2(env, stack_size=4, stack_dim0=True) # -> (4,84,84)
     env = InvertColorAgentIndicator(env)    # -> (10, 84, 84)
     env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 10, 84, 84)
-    env = ss.concat_vec_envs_v1(env, num_envs, # -> (n_envs*n_agents, 10, 84, 84)
-                                num_cpus=num_envs//4, base_class='stable_baselines3')
+    return env
+
+def make_vec_env_gym(env_name, device, vs_builtin=False, num_envs=16):
+    env = make_vec_env_ss(env_name, vs_builtin=vs_builtin)
+    env = ss.concat_vec_envs_v1(env, num_envs,  # -> (n_envs*n_agents, 10, 84, 84)
+                                num_cpus=num_envs // 4, base_class='gym')
+    return env
+
+def make_vec_env_sb3(env_name, device, vs_builtin=False, num_envs=16):
+    env = make_vec_env_ss(env_name, vs_builtin=vs_builtin)
+    env = ss.concat_vec_envs_v1(env, num_envs,  # -> (n_envs*n_agents, 10, 84, 84)
+                                num_cpus=num_envs // 4, base_class='stable_baselines3')
+    return env
+
+def make_vec_env(env_name, device, vs_builtin=False, num_envs=16, record_video=False):
+    env = make_vec_env_sb3(env_name, device, vs_builtin=vs_builtin, num_envs=num_envs)
+    if record_video:
+        env = stable_baselines3.common.vec_env.VecVideoRecorder(
+            env,
+            video_folder="videos",
+        )
     env = GymVectorEnvironment(env, env_name, device=device) # -> (n_envs*n_agents,) shape StateArray
     return env
 
