@@ -99,11 +99,11 @@ def make_vec_env_sb3(env_name, device, vs_builtin=False, num_envs=16):
 
 def make_vec_env(env_name, device, vs_builtin=False, num_envs=16, record_video=False):
     env = make_vec_env_sb3(env_name, device, vs_builtin=vs_builtin, num_envs=num_envs)
-    if record_video:
-        env = stable_baselines3.common.vec_env.VecVideoRecorder(
-            env,
-            video_folder="videos",
-        )
+    # if record_video:
+    #     env = stable_baselines3.common.vec_env.VecVideoRecorder(
+    #         env,
+    #         video_folder="videos",
+    #     )
     env = GymVectorEnvironment(env, env_name, device=device) # -> (n_envs*n_agents,) shape StateArray
     return env
 

@@ -4,15 +4,21 @@ from stable_baselines3.ppo import CnnPolicy
 from stable_baselines3.common.callbacks import BaseCallback
 from env_utils import make_vec_env_sb3, make_vec_env_gym
 from stable_baselines3.common.vec_env import VecMonitor, VecVideoRecorder
+from argparse import ArgumentParser
 
 
+parser = ArgumentParser()
+parser.add_argument("--env", type=str, required=True)
+args = parser.parse_args()
 
-env_name = 'pong_v2'
+
+env_name = args.env
 num_envs = 16
 env = make_vec_env_sb3(env_name, device='cuda', vs_builtin=True, num_envs=num_envs)
 test_env = make_vec_env_sb3(env_name, device='cuda', vs_builtin=True, num_envs=1)
 total_eval_freq = 100000
 eval_freq = total_eval_freq // num_envs
+total_train_steps = int(1e7)
 
 
 def record_video_fn(step: int) -> bool:
@@ -42,7 +48,7 @@ model = PPO(
     create_eval_env=True,
 )
 model.learn(
-    total_timesteps=int(1e7),
+    total_timesteps=total_train_steps,
     eval_env=VecVideoRecorder(
         VecMonitor(test_env),
         video_folder="videos",
