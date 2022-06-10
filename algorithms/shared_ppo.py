@@ -17,11 +17,40 @@ from all.policies import SoftmaxPolicy
 from all.presets.builder import ParallelPresetBuilder
 from algorithms import Checkpointable
 
-from models import nature_features
+from models import nature_features, our_nat_features
+from env_utils import normalize_atari_obss
 
 class PPOAgent(PPO, Checkpointable):
 
-    pass
+    def act(self, states):
+        states = normalize_atari_obss(states)
+        self._buffer.store(self._states, self._actions, states.reward)
+        self._train(states)
+        self._states = states
+        # import pdb; pdb.set_trace()
+        self._actions = self.policy.no_grad(self.get_features(states)).sample()
+        return self._actions
+
+    def eval(self, states):
+        states = normalize_atari_obss(states)
+        return self.policy.eval(self.features.eval(states))
+
+    def _train(self, next_states):
+        if len(self._buffer) >= self._batch_size:
+            # load trajectories from buffer
+            states, actions, advantages = self._buffer.advantages(next_states)
+            # states = normalize_atari_obss(states)
+
+            # compute target values
+            features = states.batch_execute(self.compute_batch_size, self.get_features)
+            features['actions'] = actions
+            pi_0 = features.batch_execute(self.compute_batch_size,
+                                          lambda s: self.policy.no_grad(s).log_prob(s['actions']))
+            targets = features.batch_execute(self.compute_batch_size, self.v.no_grad) + advantages
+
+            # train for several epochs
+            for _ in range(self.epochs):
+                self._train_epoch(states, actions, advantages, targets, pi_0)
 
 
 class PPOPreset(atari.PPOAtariPreset):
@@ -105,7 +134,8 @@ def make_ppo_vec(env_name, device, _, **kwargs):
     hparams = kwargs.get('hparams', {})
     preset = ppo_preset.env(venv).device(device).hyperparameters(
         n_envs=venv.num_envs,
-        feature_model_constructor=nature_features,
+        feature_model_constructor=our_nat_features(6),
+        # feature_model_constructor=nature_features,
         **hparams
     ).build()
 

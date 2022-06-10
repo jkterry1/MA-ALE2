@@ -14,6 +14,7 @@ from pettingzoo.utils.wrappers import BaseWrapper, BaseParallelWraper
 from all.environments import MultiagentPettingZooEnv, GymVectorEnvironment
 from all.environments.vector_env import GymVectorEnvironment
 import torch
+from torch.nn import functional as F
 
 
 class MAPZEnvSteps(MultiagentPettingZooEnv):
@@ -81,8 +82,33 @@ def make_vec_env_ss(env_name, vs_builtin=False):
     env = ss.resize_v0(env, 84, 84)         # resizing
     env = ss.reshape_v0(env, (1, 84, 84))   # reshaping (expand dummy channel dimension)
     env = frame_stack_v2(env, stack_size=4, stack_dim0=True) # -> (4,84,84)
-    env = InvertColorAgentIndicator(env)    # -> (10, 84, 84)
+    # env = InvertColorAgentIndicator(env)    # -> (10, 84, 84)
+    # env = AtariAgentIndicator(env)    # -> (6, 84, 84)
+    # for ag, obs_space in env.observation_spaces.items():
+    #     env.observation_spaces[ag].dtype = np.dtype('float')
+    # env = ss.normalize_obs_v0(env, env_min=0., env_max=1.)
     env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 10, 84, 84)
+    return env
+
+def make_vec_env_costa(env_name, device, vs_builtin=False, num_envs=16):
+    if vs_builtin:
+        env = get_base_builtin_env(env_name, parallel=True, full_action_space=False, obs_type='rgb_image')
+    else:
+        env = importlib.import_module('pettingzoo.atari.{}'.format(env_name)).parallel_env(
+            # obs_type='grayscale_image',
+            # full_action_space=False,
+        )
+    env = ss.max_observation_v0(env, 2)     # stacking observation: (env, 2)==stacking 2 frames as observation
+    env = ss.frame_skip_v0(env, 4)          # frame skipping: (env, 4)==skipping 4 or 5 (randomly) frames
+    env = ss.clip_reward_v0(env, lower_bound=-1, upper_bound=1)
+    env = ss.color_reduction_v0(env, mode="B")
+    env = ss.resize_v0(env, 84, 84)         # resizing
+    env = frame_stack_v2(env, stack_size=4, stack_dim0=True) # -> (4,84,84)
+    # env = ss.agent_indicator_v0(env, type_only=False)
+    env = ss.pettingzoo_env_to_vec_env_v1(env) # -> (n_agents, 10, 84, 84)
+    env = ss.concat_vec_envs_v1(env, num_envs,  # -> (n_envs*n_agents, 10, 84, 84)
+                                num_cpus=num_envs // 4, base_class='gym')
+    # env = GymVectorEnvironment(env, env_name, device=device)
     return env
 
 def make_vec_env_gym(env_name, device, vs_builtin=False, num_envs=16):
@@ -123,18 +149,24 @@ def recolor_surround(surround_env):
     return ss.observation_lambda_v0(surround_env, obs_fn)
 
 
-def get_base_builtin_env(env_name, parallel=False, full_action_space=True):
+def get_base_builtin_env(env_name, parallel=False, full_action_space=True, obs_type='grayscale_image'):
     name_no_version = env_name.rsplit("_", 1)[0]
     if parallel:
         env = ParallelAtariEnv(game=name_no_version, num_players=1,
-                               obs_type='grayscale_image', full_action_space=full_action_space, 
+                               obs_type=obs_type, full_action_space=full_action_space,
                                max_cycles=10000)
     else:
         env = BaseAtariEnv(game=name_no_version, num_players=1,
-                           obs_type='grayscale_image', full_action_space=full_action_space)
+                           obs_type=obs_type, full_action_space=full_action_space)
     if name_no_version == "surround":
         env = recolor_surround(env)
     return env
+
+
+def normalize_atari_obss(states):
+    obss = states['observation']
+    states['observation'] = obss / 255.
+    return states
 
 
 def InvertColorAgentIndicator(env):
@@ -166,6 +198,21 @@ def InvertColorAgentIndicator(env):
     env = ss.pad_observations_v0(env)
     return env
 
+def AtariAgentIndicator(env):
+    def modify_obs(obs, obs_space, agent):
+        num_agents = 2 # len(env.possible_agents)
+        agent_idx = env.possible_agents.index(agent)
+        indicator_flat = F.one_hot(torch.tensor(agent_idx), num_classes=num_agents) * 255.
+
+        obs_shape = obs.shape[1:]
+        indicator = indicator_flat.reshape((num_agents, 1, 1)).repeat((1, *obs_shape)).numpy()
+        assert indicator.shape == (2,84,84)
+
+        return np.concatenate((obs, indicator), axis=0)
+
+    env = ss.observation_lambda_v0(env, modify_obs)
+    env = ss.pad_observations_v0(env)
+    return env
 
 def get_tile_shape(shape, stack_size, stack_dim0=False):
     obs_dim = len(shape)

@@ -80,13 +80,15 @@ def main(return_eval=False):
     os.makedirs(save_folder)
     num_frames_train = int(args.frames)
     frames_per_save = args.frames_per_save or min(500000, max(num_frames_train // 100, 1))
+    print(f"FRAMES PER SAVE = {frames_per_save}")
     for frame in range(0,num_frames_train,frames_per_save):
         experiment.train(frames=frame)
-        torch.save(preset, f"{save_folder}/{frame+frames_per_save:09d}.pt")
-        checkpoint_files = sorted(glob(f"{save_folder}/*.pt"))
-        for ckpt_file in checkpoint_files[:-1]:
-            os.remove(ckpt_file)
-
+        print('DID TRAIN STEP')
+        # torch.save(preset, f"{save_folder}/{frame+frames_per_save:09d}.pt")
+        # checkpoint_files = sorted(glob(f"{save_folder}/*.pt"))
+        # for ckpt_file in checkpoint_files[:-1]:
+        #     os.remove(ckpt_file)
+        #
         num_eval_episodes = args.num_eval_episodes
         if is_parallel_exp:
             n_agents = 2

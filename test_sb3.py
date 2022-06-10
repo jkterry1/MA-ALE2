@@ -2,9 +2,10 @@ import gym
 from stable_baselines3 import PPO
 from stable_baselines3.ppo import CnnPolicy
 from stable_baselines3.common.callbacks import BaseCallback
-from env_utils import make_vec_env_sb3, make_vec_env_gym
+from env_utils import make_vec_env_sb3, make_vec_env_gym, make_vec_env_costa
 from stable_baselines3.common.vec_env import VecMonitor, VecVideoRecorder
 from argparse import ArgumentParser
+from stable_baselines3.common.env_checker import check_env
 
 
 parser = ArgumentParser()
@@ -14,8 +15,9 @@ args = parser.parse_args()
 
 env_name = args.env
 num_envs = 16
-env = make_vec_env_sb3(env_name, device='cuda', vs_builtin=True, num_envs=num_envs)
-test_env = make_vec_env_sb3(env_name, device='cuda', vs_builtin=True, num_envs=1)
+env = make_vec_env_gym(env_name, device='cuda', num_envs=num_envs)
+# env = make_vec_env_costa(env_name, device='cuda', vs_builtin=True, num_envs=1)
+# test_env = make_vec_env_gym(env_name, device='cuda', num_envs=2)
 total_eval_freq = 100000
 eval_freq = total_eval_freq // num_envs
 total_train_steps = int(1e7)
@@ -49,12 +51,12 @@ model = PPO(
 )
 model.learn(
     total_timesteps=total_train_steps,
-    eval_env=VecVideoRecorder(
-        VecMonitor(test_env),
-        video_folder="videos/"+env_name,
-        record_video_trigger=record_video_fn,
-    ),
-    eval_freq=eval_freq,
+    # eval_env=VecVideoRecorder(
+    #     VecMonitor(test_env),
+    #     video_folder="videos/"+env_name,
+    #     record_video_trigger=record_video_fn,
+    # ),
+    # eval_freq=eval_freq,
 )
 model.save("policy")
 
